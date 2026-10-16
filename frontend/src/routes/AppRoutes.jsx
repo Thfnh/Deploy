@@ -87,13 +87,19 @@ function AppRoutes() {
       />
 
 
+      {/* =====================================================
+          CUSTOMER
+      ====================================================== */}
+
       <Route
         path="/booking"
         element={
-          <ProtectedRoute>
-
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
             <Booking />
-
           </ProtectedRoute>
         }
       />
@@ -102,10 +108,12 @@ function AppRoutes() {
       <Route
         path="/booking/confirm"
         element={
-          <ProtectedRoute>
-
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
             <BookingConfirm />
-
           </ProtectedRoute>
         }
       />
@@ -114,10 +122,12 @@ function AppRoutes() {
       <Route
         path="/bookings"
         element={
-          <ProtectedRoute>
-
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
             <BookingHistory />
-
           </ProtectedRoute>
         }
       />
@@ -126,14 +136,20 @@ function AppRoutes() {
       <Route
         path="/bookings/:bookingId"
         element={
-          <ProtectedRoute>
-
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
             <BookingDetail />
-
           </ProtectedRoute>
         }
       />
 
+
+      {/* =====================================================
+          PUBLIC
+      ====================================================== */}
 
       <Route
         path="/pricing"
@@ -151,10 +167,21 @@ function AppRoutes() {
       />
 
 
+      {/* =====================================================
+          STAFF / ADMIN
+      ====================================================== */}
+
       <Route
         path="/admin"
         element={
-          <AdminLayout />
+          <ProtectedRoute
+            allowedRoles={[
+              "ADMIN",
+              "STAFF",
+            ]}
+          >
+            <AdminLayout />
+          </ProtectedRoute>
         }
       >
 
@@ -184,9 +211,7 @@ function AppRoutes() {
       </Route>
 
     </Routes>
-
   );
-
 }
 
 

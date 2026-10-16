@@ -1,8 +1,18 @@
 import re
 
-from flask import Blueprint, jsonify, request
+from flask import (
+    Blueprint,
+    jsonify,
+    request
+)
 
 from database import get_connection
+
+from services.jwt_service import (
+    current_user_id,
+    jwt_required,
+    role_required,
+)
 
 
 customer_booking_bp = Blueprint(
@@ -19,14 +29,27 @@ ALLOWED_BOOKING_STATUSES = {
 }
 
 
+# ============================================================
+# HELPERS
+# ============================================================
+
 def normalize_time(value):
+
     if value is None:
         return None
 
-    if hasattr(value, "strftime"):
-        return value.strftime("%H:%M")
+    if hasattr(
+        value,
+        "strftime"
+    ):
 
-    text = str(value)
+        return value.strftime(
+            "%H:%M"
+        )
+
+    text = str(
+        value
+    )
 
     match = re.match(
         r"^(\d{1,2}):(\d{2})",
@@ -34,6 +57,7 @@ def normalize_time(value):
     )
 
     if match is None:
+
         return text
 
     return (
@@ -43,76 +67,98 @@ def normalize_time(value):
 
 
 def row_to_booking(row):
+
     return {
-        "BookingID": row.BookingID,
-        "UserID": row.UserID,
 
-        "CustomerName": getattr(
-            row,
-            "FullName",
-            None,
-        ),
+        "BookingID":
+            row.BookingID,
 
-        "Phone": getattr(
-            row,
-            "Phone",
-            None,
-        ),
+        "UserID":
+            row.UserID,
 
-        "Email": getattr(
-            row,
-            "Email",
-            None,
-        ),
+        "CustomerName":
+            getattr(
+                row,
+                "FullName",
+                None,
+            ),
 
-        "FieldID": row.FieldID,
+        "Phone":
+            getattr(
+                row,
+                "Phone",
+                None,
+            ),
 
-        "FieldName": getattr(
-            row,
-            "FieldName",
-            None,
-        ),
+        "Email":
+            getattr(
+                row,
+                "Email",
+                None,
+            ),
 
-        "FieldType": getattr(
-            row,
-            "FieldType",
-            None,
-        ),
+        "FieldID":
+            row.FieldID,
 
-        "Location": getattr(
-            row,
-            "Location",
-            None,
-        ),
+        "FieldName":
+            getattr(
+                row,
+                "FieldName",
+                None,
+            ),
 
-        "BookingDate": str(
-            row.BookingDate
-        ),
+        "FieldType":
+            getattr(
+                row,
+                "FieldType",
+                None,
+            ),
 
-        "StartTime": normalize_time(
-            row.StartTime
-        ),
+        "Location":
+            getattr(
+                row,
+                "Location",
+                None,
+            ),
 
-        "EndTime": normalize_time(
-            row.EndTime
-        ),
+        "BookingDate":
+            str(
+                row.BookingDate
+            ),
 
-        "TotalAmount": float(
-            row.TotalAmount or 0
-        ),
+        "StartTime":
+            normalize_time(
+                row.StartTime
+            ),
 
-        "Status": str(
-            row.Status or ""
-        ).strip().upper(),
+        "EndTime":
+            normalize_time(
+                row.EndTime
+            ),
+
+        "TotalAmount":
+            float(
+                row.TotalAmount or 0
+            ),
+
+        "Status":
+            str(
+                row.Status or ""
+            ).strip().upper(),
 
         "CreatedAt": (
-            str(row.CreatedAt)
-            if row.CreatedAt is not None
+            str(
+                row.CreatedAt
+            )
+            if row.CreatedAt
+            is not None
             else None
         ),
 
         # PAYMENT-01 sẽ tích hợp sau.
-        "PaymentStatus": None,
+
+        "PaymentStatus":
+            None,
     }
 
 
@@ -120,6 +166,7 @@ def get_active_customer(
     cursor,
     user_id,
 ):
+
     cursor.execute(
         """
         SELECT
@@ -129,7 +176,9 @@ def get_active_customer(
             Phone,
             Role,
             Status
+
         FROM Users
+
         WHERE UserID = ?
         """,
         user_id,
@@ -138,6 +187,7 @@ def get_active_customer(
     user = cursor.fetchone()
 
     if user is None:
+
         return None
 
     role = str(
@@ -149,15 +199,18 @@ def get_active_customer(
     ).strip().upper()
 
     if role != "CUSTOMER":
+
         return None
 
     if status != "ACTIVE":
+
         return None
 
     return user
 
 
 def booking_select_sql():
+
     return """
         SELECT
             B.BookingID,
@@ -189,36 +242,40 @@ def booking_select_sql():
 
 
 # ============================================================
-# BOOKING-02
-# CUSTOMER BOOKING HISTORY
-#
-# GET /api/customer-bookings/<user_id>
-# GET /api/customer-bookings/<user_id>?status=PENDING
-#
-# Tạm thời sử dụng UserID từ flow login hiện tại.
-# AUTH-01 sẽ thay bằng JWT/server-side identity.
+# INTERNAL
+# GET BOOKINGS OF ONE CUSTOMER
 # ============================================================
 
-@customer_booking_bp.route(
-    "/<int:user_id>",
-    methods=["GET"],
-)
-def get_customer_bookings(user_id):
+def _get_customer_bookings_for_user(
+    user_id
+):
+
     conn = None
     cursor = None
 
     try:
+
         status_filter = str(
-            request.args.get("status")
+            request.args.get(
+                "status"
+            )
             or ""
         ).strip().upper()
 
+        # ====================================================
+        # VALIDATE STATUS
+        # ====================================================
+
         if (
             status_filter
-            and status_filter
-            not in ALLOWED_BOOKING_STATUSES
+            and
+            status_filter
+            not in
+            ALLOWED_BOOKING_STATUSES
         ):
+
             return jsonify({
+
                 "message":
                     "Trạng thái lọc không hợp lệ",
 
@@ -226,11 +283,17 @@ def get_customer_bookings(user_id):
                     sorted(
                         ALLOWED_BOOKING_STATUSES
                     ),
+
             }), 400
+
+        # ====================================================
+        # DATABASE
+        # ====================================================
 
         conn = get_connection()
 
         if conn is None:
+
             return jsonify({
                 "message":
                     "Không thể kết nối database"
@@ -238,20 +301,30 @@ def get_customer_bookings(user_id):
 
         cursor = conn.cursor()
 
+        # ====================================================
+        # CHECK CURRENT CUSTOMER
+        # ====================================================
+
         customer = get_active_customer(
             cursor,
             user_id,
         )
 
         if customer is None:
+
             return jsonify({
                 "message":
                     "Tài khoản khách hàng không hợp lệ hoặc không hoạt động"
             }), 403
 
+        # ====================================================
+        # QUERY
+        # ====================================================
+
         query = (
             booking_select_sql()
-            + """
+            +
+            """
             WHERE B.UserID = ?
             """
         )
@@ -261,6 +334,7 @@ def get_customer_bookings(user_id):
         ]
 
         if status_filter:
+
             query += """
                 AND UPPER(
                     LTRIM(
@@ -285,19 +359,27 @@ def get_customer_bookings(user_id):
         )
 
         bookings = [
-            row_to_booking(row)
+
+            row_to_booking(
+                row
+            )
+
             for row
             in cursor.fetchall()
         ]
 
         return jsonify({
+
             "Total":
-                len(bookings),
+                len(
+                    bookings
+                ),
 
             "Bookings":
                 bookings,
 
             "Customer": {
+
                 "UserID":
                     customer.UserID,
 
@@ -312,12 +394,16 @@ def get_customer_bookings(user_id):
             },
 
             "Filters": {
+
                 "Status":
-                    status_filter or None,
+                    status_filter
+                    or None,
             },
+
         }), 200
 
     except Exception as error:
+
         print(
             "GET CUSTOMER BOOKINGS ERROR:"
         )
@@ -330,38 +416,35 @@ def get_customer_bookings(user_id):
         }), 500
 
     finally:
+
         if cursor is not None:
+
             cursor.close()
 
         if conn is not None:
+
             conn.close()
 
 
 # ============================================================
-# BOOKING-02
-# CUSTOMER BOOKING DETAIL
-#
-# GET /api/customer-bookings/<user_id>/<booking_id>
-#
-# Query kiểm tra cả UserID và BookingID.
-# Việc xác thực UserID thật sự sẽ do AUTH-01/JWT xử lý.
+# INTERNAL
+# GET ONE BOOKING OF CUSTOMER
 # ============================================================
 
-@customer_booking_bp.route(
-    "/<int:user_id>/<int:booking_id>",
-    methods=["GET"],
-)
-def get_customer_booking_detail(
+def _get_customer_booking_detail_for_user(
     user_id,
     booking_id,
 ):
+
     conn = None
     cursor = None
 
     try:
+
         conn = get_connection()
 
         if conn is None:
+
             return jsonify({
                 "message":
                     "Không thể kết nối database"
@@ -369,22 +452,38 @@ def get_customer_booking_detail(
 
         cursor = conn.cursor()
 
+        # ====================================================
+        # CHECK CUSTOMER
+        # ====================================================
+
         customer = get_active_customer(
             cursor,
             user_id,
         )
 
         if customer is None:
+
             return jsonify({
                 "message":
                     "Tài khoản khách hàng không hợp lệ hoặc không hoạt động"
             }), 403
 
+        # ====================================================
+        # QUERY
+        #
+        # Quan trọng:
+        # Kiểm tra CẢ BookingID + UserID.
+        #
+        # Customer không thể xem Booking của người khác.
+        # ====================================================
+
         query = (
             booking_select_sql()
-            + """
+            +
+            """
             WHERE
                 B.BookingID = ?
+
                 AND B.UserID = ?
             """
         )
@@ -395,9 +494,12 @@ def get_customer_booking_detail(
             user_id,
         )
 
-        booking = cursor.fetchone()
+        booking = (
+            cursor.fetchone()
+        )
 
         if booking is None:
+
             return jsonify({
                 "message":
                     "Không tìm thấy booking hoặc bạn không có quyền xem booking này"
@@ -410,6 +512,7 @@ def get_customer_booking_detail(
         ), 200
 
     except Exception as error:
+
         print(
             "GET CUSTOMER BOOKING DETAIL ERROR:"
         )
@@ -422,8 +525,165 @@ def get_customer_booking_detail(
         }), 500
 
     finally:
+
         if cursor is not None:
+
             cursor.close()
 
         if conn is not None:
+
             conn.close()
+
+
+# ============================================================
+# T123-72
+# CUSTOMER BOOKING HISTORY
+#
+# GET:
+# /api/customer-bookings/me
+#
+# Optional:
+# /api/customer-bookings/me?status=PENDING
+#
+# UserID lấy từ JWT.
+# Frontend không gửi UserID nữa.
+# ============================================================
+
+@customer_booking_bp.route(
+    "/me",
+    methods=["GET"],
+)
+@jwt_required
+@role_required(
+    "CUSTOMER"
+)
+def get_my_bookings():
+
+    user_id = (
+        current_user_id()
+    )
+
+    return (
+        _get_customer_bookings_for_user(
+            user_id
+        )
+    )
+
+
+# ============================================================
+# LEGACY CUSTOMER BOOKING HISTORY
+#
+# GET:
+# /api/customer-bookings/<user_id>
+#
+# Giữ endpoint cũ tạm thời để frontend cũ không chết ngay.
+#
+# Nhưng chống IDOR:
+# UserID trên URL phải giống UserID trong JWT.
+# ============================================================
+
+@customer_booking_bp.route(
+    "/<int:user_id>",
+    methods=["GET"],
+)
+@jwt_required
+@role_required(
+    "CUSTOMER"
+)
+def get_customer_bookings_legacy(
+    user_id
+):
+
+    token_user_id = (
+        current_user_id()
+    )
+
+    if user_id != token_user_id:
+
+        return jsonify({
+            "message":
+                "Bạn không có quyền xem lịch đặt của người dùng khác"
+        }), 403
+
+    return (
+        _get_customer_bookings_for_user(
+            user_id
+        )
+    )
+
+
+# ============================================================
+# T123-72
+# CUSTOMER BOOKING DETAIL
+#
+# GET:
+# /api/customer-bookings/me/<booking_id>
+#
+# UserID lấy hoàn toàn từ JWT.
+# ============================================================
+
+@customer_booking_bp.route(
+    "/me/<int:booking_id>",
+    methods=["GET"],
+)
+@jwt_required
+@role_required(
+    "CUSTOMER"
+)
+def get_my_booking_detail(
+    booking_id
+):
+
+    user_id = (
+        current_user_id()
+    )
+
+    return (
+        _get_customer_booking_detail_for_user(
+            user_id,
+            booking_id,
+        )
+    )
+
+
+# ============================================================
+# LEGACY CUSTOMER BOOKING DETAIL
+#
+# GET:
+# /api/customer-bookings/<user_id>/<booking_id>
+#
+# Giữ tạm endpoint cũ.
+#
+# Nhưng token UserID phải đúng UserID trên URL.
+# ============================================================
+
+@customer_booking_bp.route(
+    "/<int:user_id>/<int:booking_id>",
+    methods=["GET"],
+)
+@jwt_required
+@role_required(
+    "CUSTOMER"
+)
+def get_customer_booking_detail_legacy(
+    user_id,
+    booking_id,
+):
+
+    token_user_id = (
+        current_user_id()
+    )
+
+    if user_id != token_user_id:
+
+        return jsonify({
+            "message":
+                "Bạn không có quyền xem booking của người dùng khác"
+        }), 403
+
+    return (
+        _get_customer_booking_detail_for_user(
+            user_id,
+            booking_id,
+        )
+    )

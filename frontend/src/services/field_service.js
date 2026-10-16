@@ -1,101 +1,121 @@
-const API_BASE_URL = (
-  import.meta.env.VITE_API_URL || "http://127.0.0.1:5000"
-).replace(/\/$/, "");
-
-const FIELDS_API = `${API_BASE_URL}/api/fields`;
-
-
-const requestJson = async (url, options = {}) => {
-  const response = await fetch(url, options);
-
-  let data = null;
-
-  try {
-    data = await response.json();
-  } catch {
-    data = null;
-  }
-
-  if (!response.ok) {
-    throw new Error(
-      data?.message ||
-      data?.error ||
-      `Request failed (${response.status})`
-    );
-  }
-
-  return data;
-};
+import {
+  apiRequest,
+} from "./api";
 
 
 // ============================================================
 // BE-03
 // GET ALL FIELDS
+//
+// PUBLIC
 // ============================================================
 
-export const getFields = async () => {
-  return requestJson(
-    `${FIELDS_API}/`
-  );
-};
+export const getFields =
+  async () => {
+
+    return apiRequest(
+      "/api/fields/",
+      {
+        method:
+          "GET",
+
+        auth:
+          false,
+      }
+    );
+  };
 
 
 // ============================================================
 // BE-05
-// GET AVAILABILITY OF ONE FIELD
+// GET AVAILABILITY ONE FIELD
+//
+// PUBLIC
 // ============================================================
 
-export const getFieldAvailability = async (
-  fieldID,
-  date
-) => {
-  const params = new URLSearchParams({
-    date,
-  });
+export const getFieldAvailability =
+  async (
+    fieldID,
+    date
+  ) => {
 
-  return requestJson(
-    `${FIELDS_API}/${fieldID}/availability?${params.toString()}`
-  );
-};
+    const params =
+      new URLSearchParams({
+        date,
+      });
+
+
+    return apiRequest(
+      `/api/fields/${encodeURIComponent(
+        fieldID
+      )}/availability?${params.toString()}`,
+      {
+        method:
+          "GET",
+
+        auth:
+          false,
+      }
+    );
+  };
 
 
 // ============================================================
 // BE-05.1
-// GET AVAILABILITY OF ALL FIELDS
+// GET ALL FIELD AVAILABILITY
+//
+// PUBLIC
 // ============================================================
 
-export const getAllFieldsAvailability = async (
-  date
-) => {
-  const params = new URLSearchParams({
-    date,
-  });
+export const getAllFieldsAvailability =
+  async (
+    date
+  ) => {
 
-  return requestJson(
-    `${FIELDS_API}/availability?${params.toString()}`
-  );
-};
+    const params =
+      new URLSearchParams({
+        date,
+      });
+
+
+    return apiRequest(
+      `/api/fields/availability?${params.toString()}`,
+      {
+        method:
+          "GET",
+
+        auth:
+          false,
+      }
+    );
+  };
 
 
 // ============================================================
 // UPDATE FIELD PRICE
-// Giữ lại để không phá chức năng cũ
+//
+// JWT required
+// ADMIN only
 // ============================================================
 
-export const updateFieldPrice = async (
-  fieldID,
-  data
-) => {
-  return requestJson(
-    `${FIELDS_API}/price/${fieldID}`,
-    {
-      method: "PUT",
+export const updateFieldPrice =
+  async (
+    fieldID,
+    data
+  ) => {
 
-      headers: {
-        "Content-Type": "application/json",
-      },
+    return apiRequest(
+      `/api/fields/price/${encodeURIComponent(
+        fieldID
+      )}`,
+      {
+        method:
+          "PUT",
 
-      body: JSON.stringify(data),
-    }
-  );
-};
+        body:
+          JSON.stringify(
+            data
+          ),
+      }
+    );
+  };
