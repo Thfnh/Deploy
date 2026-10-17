@@ -333,7 +333,7 @@ function Login() {
           <div className="login-form-group">
 
             <label htmlFor="account">
-              Tài khoản hoặc Số điện thoại
+              Tên đăng nhập, email hoặc số điện thoại
             </label>
 
 
@@ -350,7 +350,7 @@ function Login() {
                 name="account"
                 type="text"
                 autoComplete="username"
-                placeholder="Nhập tài khoản của bạn"
+                placeholder="Nhập tên đăng nhập, email hoặc số điện thoại"
                 value={formData.account}
                 onChange={handleChange}
               />
