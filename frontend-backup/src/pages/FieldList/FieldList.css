@@ -1,0 +1,173 @@
+.field-list-page {
+  width: min(1180px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 32px 0 56px;
+}
+
+.field-list-heading {
+  margin-bottom: 24px;
+}
+
+.field-list-heading h1 {
+  margin: 4px 0 8px;
+  font-size: clamp(30px, 4vw, 44px);
+  line-height: 1.1;
+}
+
+.field-list-heading p {
+  margin: 0;
+  max-width: 720px;
+  line-height: 1.6;
+}
+
+.field-list-eyebrow {
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+}
+
+.field-filter-panel {
+  display: grid;
+  grid-template-columns:
+    minmax(220px, 1.5fr)
+    repeat(3, minmax(150px, 1fr))
+    auto;
+
+  gap: 14px;
+  align-items: end;
+
+  padding: 18px;
+  margin-bottom: 18px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 16px;
+
+  background: #fff;
+}
+
+.field-filter-control {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.field-filter-control label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.field-filter-control input,
+.field-filter-control select {
+  width: 100%;
+  min-height: 42px;
+
+  padding: 9px 11px;
+
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+
+  background: #fff;
+
+  font: inherit;
+}
+
+.field-filter-control input:focus,
+.field-filter-control select:focus {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.field-filter-reset {
+  min-height: 42px;
+
+  padding: 9px 15px;
+
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+
+  background: #fff;
+
+  font: inherit;
+  font-weight: 700;
+
+  cursor: pointer;
+}
+
+.availability-summary {
+  margin: 0 0 18px;
+
+  padding: 12px 16px;
+
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
+
+  background: #fff;
+}
+
+.availability-summary p {
+  margin: 0;
+}
+
+.availability-summary-error,
+.field-list-state-error {
+  color: #b91c1c;
+}
+
+.field-list-state {
+  padding: 44px 18px;
+
+  border: 1px dashed #d1d5db;
+  border-radius: 16px;
+
+  text-align: center;
+
+  background: #fff;
+}
+
+.field-card-grid {
+  display: grid;
+
+  grid-template-columns:
+    repeat(
+      3,
+      minmax(0, 1fr)
+    );
+
+  gap: 20px;
+}
+
+@media (max-width: 1050px) {
+
+  .field-filter-panel {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .field-card-grid {
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+}
+
+@media (max-width: 680px) {
+
+  .field-list-page {
+    width: min(
+      100% - 20px,
+      1180px
+    );
+
+    padding-top: 20px;
+  }
+
+  .field-filter-panel,
+  .field-card-grid {
+    grid-template-columns: 1fr;
+  }
+}

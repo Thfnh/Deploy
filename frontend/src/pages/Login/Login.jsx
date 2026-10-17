@@ -136,65 +136,12 @@ function Login() {
     );
 
 
-<<<<<<< HEAD
-    try {
-
-      setLoading(true);
-
-
-      const response =
-        await axios.post(
-          `${import.meta.env.VITE_API_URL}/api/auth/login`,
-          {
-            account:
-              formData.account.trim(),
-
-            password:
-              formData.password,
-          }
-        );
-
-
-      if (!response.data?.success) {
-
-        setServerMessage(
-          response.data?.message ||
-          "Sai tài khoản hoặc mật khẩu."
-        );
-
-        return;
-      }
-
-
-      const user =
-        response.data.user;
-
-
-      if (!user) {
-
-        setServerMessage(
-          "Không nhận được thông tin người dùng."
-        );
-
-        return;
-      }
-
-
-      /* =====================================================
-         SAVE USER
-      ===================================================== */
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify(user)
-=======
     const {
       user,
     } =
       await loginUser(
         formData.account.trim(),
         formData.password
->>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
       );
 
 
@@ -243,31 +190,12 @@ function Login() {
         : null;
 
 
-<<<<<<< HEAD
-      /*
-        Chỉ chấp nhận redirect nội bộ.
-        Ví dụ:
-        /booking?fieldId=1006&date=2026-09-27
-        /payment
-        /account
-      */
-
-      const safeRedirect =
-        redirectTo
-          &&
-          redirectTo.startsWith("/")
-          &&
-          !redirectTo.startsWith("//")
-          ? redirectTo
-          : null;
-=======
     const redirectIsAdmin =
       safeRedirect ===
         "/admin" ||
       safeRedirect?.startsWith(
         "/admin/"
       );
->>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
 
 
     const canAccessAdmin =
@@ -410,21 +338,10 @@ function Login() {
 
 
             <div
-<<<<<<< HEAD
-
-              className={
-                `login-input-wrapper ${errors.account
-                  ? "input-error"
-                  : ""
-                }`
-              }
-
-=======
               className={`login-input-wrapper ${errors.account
                 ? "input-error"
                 : ""
                 }`}
->>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
             >
               <UserRound size={23} />
 
@@ -457,21 +374,10 @@ function Login() {
 
 
             <div
-<<<<<<< HEAD
-
-              className={
-                `login-input-wrapper ${errors.password
-                  ? "input-error"
-                  : ""
-                }`
-              }
-
-=======
               className={`login-input-wrapper ${errors.password
                 ? "input-error"
                 : ""
                 }`}
->>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
             >
               <LockKeyhole size={21} />
 

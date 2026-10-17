@@ -1,10 +1,6 @@
-<<<<<<< HEAD
-const API_URL = `${import.meta.env.VITE_API_URL}/api/fields`;;
-=======
 import {
   apiRequest,
 } from "./api";
->>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
 
 
 // ============================================================
