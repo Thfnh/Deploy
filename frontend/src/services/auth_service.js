@@ -209,6 +209,18 @@ export const loginUser = async (
   };
 };
 
+export const registerUser = async (userData) => {
+  const result = await apiRequest("/api/auth/register", {
+    method: "POST",
+    auth: false,
+    body: JSON.stringify(userData),
+  });
+  if (!result?.success) {
+    throw new Error(result?.message || "Đăng ký thất bại");
+  }
+  return result;
+};
+
 
 // ============================================================
 // GET CURRENT USER FROM JWT
