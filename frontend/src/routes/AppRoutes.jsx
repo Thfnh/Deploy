@@ -36,71 +36,162 @@ import Booking
 import BookingConfirm
   from "../pages/BookingConfirm/BookingConfirm";
 
+import BookingHistory
+  from "../pages/BookingHistory/BookingHistory";
+
+import BookingDetail
+  from "../pages/BookingDetail/BookingDetail";
+
 import Pricing
   from "../pages/Pricing/Pricing";
 
 import ProtectedRoute
   from "../components/ProtectedRoute/ProtectedRoute";
 
+
 function AppRoutes() {
+
   return (
+
     <Routes>
+
       <Route
         path="/"
-        element={<Home />}
+        element={
+          <Home />
+        }
       />
+
 
       <Route
         path="/login"
-        element={<Login />}
+        element={
+          <Login />
+        }
       />
+
 
       <Route
         path="/register"
-        element={<Register />}
+        element={
+          <Register />
+        }
       />
+
 
       <Route
         path="/fields"
-        element={<FieldList />}
+        element={
+          <FieldList />
+        }
       />
+
+
+      {/* =====================================================
+          CUSTOMER
+      ====================================================== */}
 
       <Route
         path="/booking"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
             <Booking />
           </ProtectedRoute>
         }
       />
 
+
       <Route
         path="/booking/confirm"
         element={
-          <ProtectedRoute>
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
             <BookingConfirm />
           </ProtectedRoute>
         }
       />
 
+
+      <Route
+        path="/bookings"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
+            <BookingHistory />
+          </ProtectedRoute>
+        }
+      />
+
+
+      <Route
+        path="/bookings/:bookingId"
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "CUSTOMER"
+            ]}
+          >
+            <BookingDetail />
+          </ProtectedRoute>
+        }
+      />
+
+
+      {/* =====================================================
+          PUBLIC
+      ====================================================== */}
+
       <Route
         path="/pricing"
-        element={<Pricing />}
+        element={
+          <Pricing />
+        }
       />
+
 
       <Route
         path="/about"
-        element={<About />}
+        element={
+          <About />
+        }
       />
+
+
+      {/* =====================================================
+          STAFF / ADMIN
+      ====================================================== */}
 
       <Route
         path="/admin"
-        element={<AdminLayout />}
+        element={
+          <ProtectedRoute
+            allowedRoles={[
+              "ADMIN",
+              "STAFF",
+            ]}
+          >
+            <AdminLayout />
+          </ProtectedRoute>
+        }
       >
+
         <Route
           index
-          element={<Admin />}
+          element={
+            <Admin />
+          }
         />
+
 
         <Route
           path="fields"
@@ -109,15 +200,19 @@ function AppRoutes() {
           }
         />
 
+
         <Route
           path="bookings"
           element={
             <BookingManagement />
           }
         />
+
       </Route>
+
     </Routes>
   );
 }
+
 
 export default AppRoutes;

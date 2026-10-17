@@ -1,3 +1,7 @@
+from dotenv import load_dotenv
+
+load_dotenv()
+
 from flask import Flask
 from flask_cors import CORS
 from flasgger import Swagger
@@ -11,8 +15,12 @@ CORS(app)
 from routes.auth import auth_bp
 from routes.field import field_bp
 from routes.booking import booking_bp
+from routes.customer_booking import customer_booking_bp
 
-swagger = Swagger(app, template_file="swagger.yaml")
+swagger = Swagger(
+    app,
+    template_file="swagger.yaml"
+)
 
 
 app.register_blueprint(
@@ -30,6 +38,12 @@ app.register_blueprint(
 app.register_blueprint(
     booking_bp,
     url_prefix="/api/bookings"
+)
+
+
+app.register_blueprint(
+    customer_booking_bp,
+    url_prefix="/api/customer-bookings"
 )
 
 

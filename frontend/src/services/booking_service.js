@@ -1,86 +1,63 @@
-const API_BASE_URL = (
-  import.meta.env.VITE_API_URL ||
-  "http://127.0.0.1:5000"
-).replace(/\/$/, "");
+<<<<<<< HEAD
+const API_URL =
+  `${import.meta.env.VITE_API_URL}/api/bookings`;
+=======
+import {
+  apiRequest,
+} from "./api";
+>>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
 
 
-const BOOKINGS_API =
-  `${API_BASE_URL}/api/bookings`;
-
-
-const parseResponse = async (
-  response
-) => {
-
-  let result = null;
-
-  try {
-    result = await response.json();
-  } catch {
-    result = null;
-  }
-
-
-  if (!response.ok) {
-
-    const error =
-      new Error(
-        result?.message ||
-        `Booking API lỗi HTTP ${response.status}`
-      );
-
-    error.status =
-      response.status;
-
-    error.code =
-      result?.code;
-
-    error.data =
-      result;
-
-    throw error;
-  }
-
-
-  return result;
-};
-
-
-/* =========================================================
-   CUSTOMER - CREATE BOOKING
-========================================================= */
+// =========================================================
+// CUSTOMER - CREATE BOOKING
+// =========================================================
 
 export const createBooking =
   async (data) => {
 
-    const response =
-      await fetch(
-        `${BOOKINGS_API}/`,
-        {
-          method: "POST",
-
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
-
-          body:
-            JSON.stringify(
-              data
-            ),
-        }
-      );
+    const payload = {
+      ...(data || {}),
+    };
 
 
-    return parseResponse(
-      response
+    /*
+      T123-72
+
+      Backend lấy UserID từ JWT.
+
+      Dù BookingConfirm cũ vẫn truyền
+      UserID thì service này loại bỏ trước
+      khi gửi.
+    */
+
+    delete payload.UserID;
+
+    delete payload.AdminUserID;
+
+
+    return apiRequest(
+      "/api/bookings/",
+      {
+        method:
+          "POST",
+
+        body:
+          JSON.stringify(
+            payload
+          ),
+      }
     );
   };
 
 
-/* =========================================================
-   STAFF / ADMIN - GET BOOKINGS
-========================================================= */
+// =========================================================
+// STAFF / ADMIN - GET BOOKINGS
+//
+// managerUserID vẫn để trong function parameter
+// để BookingManagement S1 không phải sửa.
+//
+// Nhưng không gửi ID này cho backend nữa.
+// =========================================================
 
 export const getAllBookings =
   async (
@@ -88,14 +65,11 @@ export const getAllBookings =
     filters = {}
   ) => {
 
+    void managerUserID;
+
+
     const params =
       new URLSearchParams();
-
-
-    params.set(
-      "adminUserID",
-      String(managerUserID)
-    );
 
 
     if (
@@ -118,42 +92,50 @@ export const getAllBookings =
     }
 
 
-    const response =
-      await fetch(
-        `${BOOKINGS_API}/?${params.toString()}`
-      );
+    const query =
+      params.toString();
 
 
-    return parseResponse(
-      response
+    return apiRequest(
+      `/api/bookings/${
+        query
+          ? `?${query}`
+          : ""
+      }`,
+      {
+        method:
+          "GET",
+      }
     );
   };
 
 
-/* =========================================================
-   BOOKING DETAIL
-========================================================= */
+// =========================================================
+// STAFF / ADMIN - BOOKING DETAIL
+// =========================================================
 
 export const getBookingDetail =
-  async (bookingID) => {
+  async (
+    bookingID
+  ) => {
 
-    const response =
-      await fetch(
-        `${BOOKINGS_API}/${encodeURIComponent(
-          bookingID
-        )}`
-      );
-
-
-    return parseResponse(
-      response
+    return apiRequest(
+      `/api/bookings/${encodeURIComponent(
+        bookingID
+      )}`,
+      {
+        method:
+          "GET",
+      }
     );
   };
 
 
-/* =========================================================
-   STAFF / ADMIN - UPDATE STATUS
-========================================================= */
+// =========================================================
+// STAFF / ADMIN - UPDATE STATUS
+//
+// managerUserID được giữ lại chỉ để tương thích UI S1.
+// =========================================================
 
 export const updateBookingStatus =
   async (
@@ -162,32 +144,103 @@ export const updateBookingStatus =
     managerUserID
   ) => {
 
-    const response =
-      await fetch(
-        `${BOOKINGS_API}/${encodeURIComponent(
-          bookingID
-        )}/status`,
-        {
-          method: "PATCH",
+    void managerUserID;
 
-          headers: {
-            "Content-Type":
-              "application/json",
-          },
 
-          body:
-            JSON.stringify({
-              Status:
-                status,
+    return apiRequest(
+      `/api/bookings/${encodeURIComponent(
+        bookingID
+      )}/status`,
+      {
+        method:
+          "PATCH",
 
-              AdminUserID:
-                managerUserID,
-            }),
-        }
+        body:
+          JSON.stringify({
+            Status:
+              status,
+          }),
+      }
+    );
+  };
+
+
+// =========================================================
+// CUSTOMER - BOOKING HISTORY
+//
+// Không dùng:
+// /customer-bookings/5
+//
+// Dùng:
+// /customer-bookings/me
+// =========================================================
+
+export const getCustomerBookings =
+  async (
+    userID,
+    filters = {}
+  ) => {
+
+    /*
+      Giữ userID trong parameter
+      để BookingHistory cũ không vỡ.
+    */
+
+    void userID;
+
+
+    const params =
+      new URLSearchParams();
+
+
+    if (
+      filters.status
+    ) {
+      params.set(
+        "status",
+        filters.status
       );
+    }
 
 
-    return parseResponse(
-      response
+    const query =
+      params.toString();
+
+
+    return apiRequest(
+      `/api/customer-bookings/me${
+        query
+          ? `?${query}`
+          : ""
+      }`,
+      {
+        method:
+          "GET",
+      }
+    );
+  };
+
+
+// =========================================================
+// CUSTOMER - BOOKING DETAIL
+// =========================================================
+
+export const getCustomerBookingDetail =
+  async (
+    userID,
+    bookingID
+  ) => {
+
+    void userID;
+
+
+    return apiRequest(
+      `/api/customer-bookings/me/${encodeURIComponent(
+        bookingID
+      )}`,
+      {
+        method:
+          "GET",
+      }
     );
   };

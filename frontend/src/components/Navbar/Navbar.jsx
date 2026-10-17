@@ -16,6 +16,10 @@ import {
 
 import logoIcon
   from "../../assets/icons/ball.png";
+import {
+  getStoredUser,
+  logoutUser,
+} from "../../services/auth_service";
 
 import "./Navbar.css";
 
@@ -36,42 +40,9 @@ function Navbar() {
 
   const loadUser = () => {
 
-    try {
-
-      const rawUser =
-        localStorage.getItem(
-          "user"
-        );
-
-
-      if (!rawUser) {
-
-        setUser(null);
-
-        return;
-      }
-
-
-      const savedUser =
-        JSON.parse(rawUser);
-
-
-      if (!savedUser?.UserID) {
-
-        setUser(null);
-
-        return;
-      }
-
-
-      setUser(
-        savedUser
-      );
-
-    } catch {
-
-      setUser(null);
-    }
+    setUser(
+      getStoredUser()
+    );
   };
 
 
@@ -113,33 +84,20 @@ function Navbar() {
 
   const handleLogout = () => {
 
-    localStorage.removeItem(
-      "user"
-    );
+  logoutUser();
 
 
-    localStorage.removeItem(
-      "bookingDraft"
-    );
+  setUser(null);
 
 
-    setUser(null);
-
-
-    window.dispatchEvent(
-      new Event(
-        "auth-changed"
-      )
-    );
-
-
-    navigate(
-      "/",
-      {
-        replace: true,
-      }
-    );
-  };
+  navigate(
+    "/",
+    {
+      replace:
+        true,
+    }
+  );
+};
 
 
   // =========================================================
@@ -218,7 +176,7 @@ function Navbar() {
 
 
           <NavLink
-            to="/booking"
+            to="/bookings"
             className={
               ({ isActive }) =>
                 isActive
