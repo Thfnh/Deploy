@@ -7,6 +7,11 @@ from services.availability_service import (
     booking_is_cancelled,
     is_time_overlap,
 )
+from services.jwt_service import (
+    current_user_id,
+    jwt_required,
+    role_required,
+)
 
 
 booking_bp = Blueprint(
@@ -28,15 +33,18 @@ STATUS_TRANSITIONS = {
         "CONFIRMED",
         "CANCELLED",
     },
-
     "CONFIRMED": {
         "COMPLETED",
         "CANCELLED",
     },
-
     "CANCELLED": set(),
-
     "COMPLETED": set(),
+}
+
+
+BOOKING_MANAGER_ROLES = {
+    "ADMIN",
+    "STAFF",
 }
 
 
@@ -45,167 +53,113 @@ STATUS_TRANSITIONS = {
 # ============================================================
 
 def parse_date(value):
-
     if not value:
         return None
 
     try:
-
         return datetime.strptime(
             str(value),
-            "%Y-%m-%d"
+            "%Y-%m-%d",
         ).date()
 
     except (TypeError, ValueError):
-
         return None
 
 
 def normalize_time(value):
-
     if value is None:
         return None
 
     if hasattr(value, "strftime"):
-
-        return value.strftime(
-            "%H:%M"
-        )
+        return value.strftime("%H:%M")
 
     try:
-
         return datetime.strptime(
             str(value)[:5],
-            "%H:%M"
-        ).strftime(
-            "%H:%M"
-        )
+            "%H:%M",
+        ).strftime("%H:%M")
 
     except (TypeError, ValueError):
-
         return None
 
 
 def row_to_booking(row):
-
     return {
-
-        "BookingID":
-            row.BookingID,
-
-        "UserID":
-            row.UserID,
-
-        "CustomerName":
-            getattr(
-                row,
-                "FullName",
-                None
-            ),
-
-        "Phone":
-            getattr(
-                row,
-                "Phone",
-                None
-            ),
-
-        "Email":
-            getattr(
-                row,
-                "Email",
-                None
-            ),
-
-        "FieldID":
-            row.FieldID,
-
-        "FieldName":
-            getattr(
-                row,
-                "FieldName",
-                None
-            ),
-
-        "FieldType":
-            getattr(
-                row,
-                "FieldType",
-                None
-            ),
-
-        "Location":
-            getattr(
-                row,
-                "Location",
-                None
-            ),
-
-        "BookingDate":
-            str(
-                row.BookingDate
-            ),
-
-        "StartTime":
-            normalize_time(
-                row.StartTime
-            ),
-
-        "EndTime":
-            normalize_time(
-                row.EndTime
-            ),
-
-        "TotalAmount":
-            float(
-                row.TotalAmount
-                or
-                0
-            ),
-
-        "Status":
-            str(
-                row.Status
-                or
-                ""
-            ).strip().upper(),
-
-        "CreatedAt":
-            (
-                str(
-                    row.CreatedAt
-                )
-                if row.CreatedAt is not None
-                else None
-            ),
+        "BookingID": row.BookingID,
+        "UserID": row.UserID,
+        "CustomerName": getattr(
+            row,
+            "FullName",
+            None,
+        ),
+        "Phone": getattr(
+            row,
+            "Phone",
+            None,
+        ),
+        "Email": getattr(
+            row,
+            "Email",
+            None,
+        ),
+        "FieldID": row.FieldID,
+        "FieldName": getattr(
+            row,
+            "FieldName",
+            None,
+        ),
+        "FieldType": getattr(
+            row,
+            "FieldType",
+            None,
+        ),
+        "Location": getattr(
+            row,
+            "Location",
+            None,
+        ),
+        "BookingDate": str(
+            row.BookingDate
+        ),
+        "StartTime": normalize_time(
+            row.StartTime
+        ),
+        "EndTime": normalize_time(
+            row.EndTime
+        ),
+        "TotalAmount": float(
+            row.TotalAmount or 0
+        ),
+        "Status": str(
+            row.Status or ""
+        ).strip().upper(),
+        "CreatedAt": (
+            str(row.CreatedAt)
+            if row.CreatedAt is not None
+            else None
+        ),
     }
 
 
-# ============================================================
-# TEMP ADMIN CHECK
-#
-# Sau này BE-14 JWT sẽ thay phần này.
-# Hiện tại kiểm tra AdminUserID trong bảng Users.
-# ============================================================
-
-def get_admin(
+def get_booking_manager(
     cursor,
-    admin_user_id
+    user_id,
 ):
+    """
+    Kiểm tra lại Role và Status trực tiếp từ database.
+
+    JWT xác định người đang gọi API.
+    Hàm này kiểm tra thêm trạng thái hiện tại trong DB
+    để tránh trường hợp token cũ vẫn chứa Role đã bị thay đổi.
+    """
 
     try:
+        user_id = int(
+            user_id
+        )
 
-        admin_user_id = int(
-                admin_user_id
-            )
-
-    except (
-        TypeError,
-        ValueError
-    ):
-
+    except (TypeError, ValueError):
         return None
-
 
     cursor.execute(
         """
@@ -219,63 +173,91 @@ def get_admin(
 
         WHERE UserID = ?
         """,
-        admin_user_id,
+        user_id,
     )
 
+    user = cursor.fetchone()
 
-    admin = cursor.fetchone()
-
-
-    if admin is None:
-
+    if user is None:
         return None
 
+    role = str(
+        user.Role or ""
+    ).strip().upper()
 
-    if (
-        str(
-            admin.Role
-            or
-            ""
-        )
-        .strip()
-        .upper()
-        !=
-        "ADMIN"
-    ):
+    status = str(
+        user.Status or ""
+    ).strip().upper()
 
+    if role not in BOOKING_MANAGER_ROLES:
         return None
 
-
-    if (
-        str(
-            admin.Status
-            or
-            ""
-        )
-        .strip()
-        .upper()
-        !=
-        "ACTIVE"
-    ):
-
+    if status != "ACTIVE":
         return None
 
+    return user
 
-    return admin
+
+def get_booking_row(
+    cursor,
+    booking_id,
+):
+    cursor.execute(
+        """
+        SELECT
+            B.BookingID,
+            B.UserID,
+            B.FieldID,
+            B.BookingDate,
+            B.StartTime,
+            B.EndTime,
+            B.TotalAmount,
+            B.Status,
+            B.CreatedAt,
+
+            F.FieldName,
+            F.FieldType,
+            F.Location,
+
+            U.FullName,
+            U.Phone,
+            U.Email
+
+        FROM Bookings B
+
+        INNER JOIN FootballFields F
+            ON B.FieldID = F.FieldID
+
+        INNER JOIN Users U
+            ON B.UserID = U.UserID
+
+        WHERE B.BookingID = ?
+        """,
+        booking_id,
+    )
+
+    return cursor.fetchone()
 
 
 # ============================================================
-# CREATE BOOKING
+# BE-06 - CREATE BOOKING
 #
 # POST /api/bookings/
 #
-# KHÁCH HÀNG TẠO ĐƠN:
-# Status luôn là PENDING.
+# Booking mới luôn có Status = PENDING.
+# Giá lấy từ FieldPrices, không tin giá frontend gửi lên.
+#
+# T123-72:
+# UserID lấy từ JWT, không lấy từ body request.
 # ============================================================
 
 @booking_bp.route(
     "/",
     methods=["POST"],
+)
+@jwt_required
+@role_required(
+    "CUSTOMER"
 )
 def create_booking():
 
@@ -284,78 +266,77 @@ def create_booking():
 
     try:
 
-        data = request.get_json(
+        data = (
+            request.get_json(
                 silent=True
-            ) or {}
-
-
-        user_id =  data.get(
-                "UserID"
             )
-
-        field_id =data.get(
-                "FieldID"
-            )
-
-        booking_date_text =data.get(
-                "BookingDate"
-            )
-
-
-        start_time = normalize_time(
-                data.get(
-                    "StartTime"
-                )
-            )
-
-
-        end_time = normalize_time(
-                data.get(
-                    "EndTime"
-                )
-            )
-
-
-        # Hiện tại chỉ phục vụ UI.
-        # DB chưa lưu PaymentMethod trong Bookings.
-        payment_method =  data.get(
-                "PaymentMethod"
-            )
-
+            or {}
+        )
 
         # ====================================================
-        # VALIDATE ID
+        # T123-72
+        #
+        # Không còn:
+        # user_id = data.get("UserID")
+        #
+        # Backend tự xác định người dùng từ JWT.
+        # ====================================================
+
+        user_id = (
+            current_user_id()
+        )
+
+        field_id = data.get(
+            "FieldID"
+        )
+
+        booking_date_text = data.get(
+            "BookingDate"
+        )
+
+        start_time = normalize_time(
+            data.get(
+                "StartTime"
+            )
+        )
+
+        end_time = normalize_time(
+            data.get(
+                "EndTime"
+            )
+        )
+
+        # DB Bookings hiện chưa lưu PaymentMethod.
+        # Vẫn trả lại để frontend tiếp tục flow xác nhận.
+
+        payment_method = data.get(
+            "PaymentMethod"
+        )
+
+        # ====================================================
+        # VALIDATE FIELD ID
         # ====================================================
 
         try:
 
-            user_id =  int(
-                    user_id
-                )
+            field_id = int(
+                field_id
+            )
 
-            field_id =  int(
-                    field_id
-                )
-
-        except (
-            TypeError,
-            ValueError
-        ):
+        except (TypeError, ValueError):
 
             return jsonify({
                 "message":
-                    "UserID hoặc FieldID không hợp lệ"
+                    "FieldID không hợp lệ"
             }), 400
-
 
         # ====================================================
         # VALIDATE DATE
         # ====================================================
 
         booking_date = parse_date(
-                booking_date_text
-            )
-
+            booking_date_text
+        )
 
         if booking_date is None:
 
@@ -364,14 +345,12 @@ def create_booking():
                     "Ngày đặt không đúng định dạng YYYY-MM-DD"
             }), 400
 
-
         if booking_date < date.today():
 
             return jsonify({
                 "message":
                     "Không thể đặt sân cho ngày đã qua"
             }), 400
-
 
         # ====================================================
         # VALIDATE TIME
@@ -388,18 +367,15 @@ def create_booking():
                     "Khung giờ không hợp lệ"
             }), 400
 
-
         start_object = datetime.strptime(
-                start_time,
-                "%H:%M"
-            )
+            start_time,
+            "%H:%M",
+        )
 
-
-        end_object =  datetime.strptime(
-                end_time,
-                "%H:%M"
-            )
-
+        end_object = datetime.strptime(
+            end_time,
+            "%H:%M",
+        )
 
         if start_object >= end_object:
 
@@ -408,13 +384,11 @@ def create_booking():
                     "Giờ kết thúc phải lớn hơn giờ bắt đầu"
             }), 400
 
-
         # ====================================================
         # DATABASE
         # ====================================================
 
-        conn =  get_connection()
-
+        conn = get_connection()
 
         if conn is None:
 
@@ -423,17 +397,14 @@ def create_booking():
                     "Không thể kết nối database"
             }), 500
 
-
         cursor = conn.cursor()
 
+        # Giảm race condition khi hai request
+        # cùng đặt một slot.
 
-        # Chống hai request cùng đặt một slot.
         cursor.execute(
-            """
-            SET TRANSACTION ISOLATION LEVEL SERIALIZABLE
-            """
+            "SET TRANSACTION ISOLATION LEVEL SERIALIZABLE"
         )
-
 
         # ====================================================
         # CHECK USER
@@ -454,9 +425,7 @@ def create_booking():
             user_id,
         )
 
-
         user = cursor.fetchone()
-
 
         if user is None:
 
@@ -467,18 +436,15 @@ def create_booking():
                     "Không tìm thấy người dùng"
             }), 404
 
+        user_status = str(
+            user.Status or ""
+        ).strip().upper()
 
-        if (
-            str(
-                user.Status
-                or
-                ""
-            )
-            .strip()
-            .upper()
-            !=
-            "ACTIVE"
-        ):
+        user_role = str(
+            user.Role or ""
+        ).strip().upper()
+
+        if user_status != "ACTIVE":
 
             conn.rollback()
 
@@ -487,18 +453,7 @@ def create_booking():
                     "Tài khoản hiện không hoạt động"
             }), 403
 
-
-        if (
-            str(
-                user.Role
-                or
-                ""
-            )
-            .strip()
-            .upper()
-            !=
-            "CUSTOMER"
-        ):
+        if user_role != "CUSTOMER":
 
             conn.rollback()
 
@@ -506,7 +461,6 @@ def create_booking():
                 "message":
                     "Chỉ tài khoản khách hàng mới được đặt sân"
             }), 403
-
 
         # ====================================================
         # CHECK FIELD
@@ -528,9 +482,7 @@ def create_booking():
             field_id,
         )
 
-
-        field =  cursor.fetchone()
-
+        field = cursor.fetchone()
 
         if field is None:
 
@@ -541,18 +493,11 @@ def create_booking():
                     "Không tìm thấy sân bóng"
             }), 404
 
+        field_status = str(
+            field.Status or ""
+        ).strip().upper()
 
-        if (
-            str(
-                field.Status
-                or
-                ""
-            )
-            .strip()
-            .upper()
-            !=
-            "AVAILABLE"
-        ):
+        if field_status != "AVAILABLE":
 
             conn.rollback()
 
@@ -561,9 +506,10 @@ def create_booking():
                     "Sân hiện không thể đặt"
             }), 409
 
-
         # ====================================================
-        # GET PRICE FROM DB
+        # GET PRICE FROM DATABASE
+        #
+        # Không tin giá frontend gửi.
         # ====================================================
 
         cursor.execute(
@@ -579,21 +525,16 @@ def create_booking():
 
             WHERE FieldID = ?
 
-              AND StartTime =
-                    CAST(? AS TIME)
+              AND StartTime = CAST(? AS TIME)
 
-              AND EndTime =
-                    CAST(? AS TIME)
+              AND EndTime = CAST(? AS TIME)
             """,
-
             field_id,
             start_time,
             end_time,
         )
 
-
         price_row = cursor.fetchone()
-
 
         if price_row is None:
 
@@ -604,16 +545,12 @@ def create_booking():
                     "Khung giờ này không tồn tại trong bảng giá"
             }), 400
 
-
-        total_amount =  float(
-                price_row.Price
-                or
-                0
-            )
-
+        total_amount = float(
+            price_row.Price or 0
+        )
 
         # ====================================================
-        # CHECK CONFLICT
+        # CHECK OVERLAP / DOUBLE BOOKING
         # ====================================================
 
         cursor.execute(
@@ -624,11 +561,10 @@ def create_booking():
                 EndTime,
                 Status
 
-            FROM Bookings
-                WITH (
-                    UPDLOCK,
-                    HOLDLOCK
-                )
+            FROM Bookings WITH (
+                UPDLOCK,
+                HOLDLOCK
+            )
 
             WHERE FieldID = ?
 
@@ -636,24 +572,22 @@ def create_booking():
                     BookingDate AS DATE
                   ) = ?
             """,
-
             field_id,
             booking_date,
         )
 
-
-        existing_bookings = cursor.fetchall()
-
+        existing_bookings = (
+            cursor.fetchall()
+        )
 
         for booking in existing_bookings:
 
             # CANCELLED không chiếm sân.
+
             if booking_is_cancelled(
                 booking.Status
             ):
-
                 continue
-
 
             if is_time_overlap(
                 start_time,
@@ -665,23 +599,18 @@ def create_booking():
                 conn.rollback()
 
                 return jsonify({
-
-                    "message":
+                    "message": (
                         "Khung giờ vừa được người khác đặt. "
-                        "Vui lòng chọn khung giờ khác.",
-
+                        "Vui lòng chọn khung giờ khác."
+                    ),
                     "code":
                         "BOOKING_CONFLICT",
-
                 }), 409
-
 
         # ====================================================
         # INSERT BOOKING
         #
-        # Quan trọng:
-        # KHÔNG tự CONFIRMED.
-        # Đơn mới luôn PENDING.
+        # Booking mới luôn PENDING.
         # ====================================================
 
         cursor.execute(
@@ -713,7 +642,6 @@ def create_booking():
                 GETDATE()
             )
             """,
-
             user_id,
             field_id,
             booking_date,
@@ -722,12 +650,11 @@ def create_booking():
             total_amount,
         )
 
-
-        booking_id =  cursor.fetchone()[0]
-
+        booking_id = (
+            cursor.fetchone()[0]
+        )
 
         conn.commit()
-
 
         return jsonify({
 
@@ -781,46 +708,53 @@ def create_booking():
 
         }), 201
 
-
     except Exception as error:
 
         print(
             "CREATE BOOKING ERROR:"
         )
 
-        print(
-            error
-        )
-
+        print(error)
 
         if conn is not None:
-            conn.rollback()
 
+            conn.rollback()
 
         return jsonify({
             "message":
                 "Có lỗi xảy ra khi tạo booking"
         }), 500
 
-
     finally:
 
         if cursor is not None:
+
             cursor.close()
 
         if conn is not None:
+
             conn.close()
 
 
 # ============================================================
-# GET BOOKING DETAIL
+# STAFF / ADMIN - GET BOOKING DETAIL
 #
 # GET /api/bookings/<booking_id>
+#
+# Chỉ STAFF / ADMIN được xem endpoint quản lý này.
+#
+# Customer dùng:
+# GET /api/customer-bookings/me/<booking_id>
 # ============================================================
 
 @booking_bp.route(
     "/<int:booking_id>",
     methods=["GET"],
+)
+@jwt_required
+@role_required(
+    "ADMIN",
+    "STAFF"
 )
 def get_booking_detail(
     booking_id
@@ -831,8 +765,7 @@ def get_booking_detail(
 
     try:
 
-        conn =  get_connection()
-
+        conn = get_connection()
 
         if conn is None:
 
@@ -841,48 +774,12 @@ def get_booking_detail(
                     "Không thể kết nối database"
             }), 500
 
+        cursor = conn.cursor()
 
-        cursor =  conn.cursor()
-
-
-        cursor.execute(
-            """
-            SELECT
-                B.BookingID,
-                B.UserID,
-                B.FieldID,
-                B.BookingDate,
-                B.StartTime,
-                B.EndTime,
-                B.TotalAmount,
-                B.Status,
-                B.CreatedAt,
-
-                F.FieldName,
-                F.FieldType,
-                F.Location,
-
-                U.FullName,
-                U.Phone,
-                U.Email
-
-            FROM Bookings B
-
-            INNER JOIN FootballFields F
-                ON B.FieldID = F.FieldID
-
-            INNER JOIN Users U
-                ON B.UserID = U.UserID
-
-            WHERE B.BookingID = ?
-            """,
-
+        booking = get_booking_row(
+            cursor,
             booking_id,
         )
-
-
-        booking =  cursor.fetchone()
-
 
         if booking is None:
 
@@ -891,13 +788,11 @@ def get_booking_detail(
                     "Không tìm thấy booking"
             }), 404
 
-
         return jsonify(
             row_to_booking(
                 booking
             )
         ), 200
-
 
     except Exception as error:
 
@@ -905,190 +800,49 @@ def get_booking_detail(
             "GET BOOKING DETAIL ERROR:"
         )
 
-        print(
-            error
-        )
-
+        print(error)
 
         return jsonify({
             "message":
                 "Có lỗi xảy ra khi lấy booking"
         }), 500
 
-
     finally:
 
         if cursor is not None:
+
             cursor.close()
 
         if conn is not None:
+
             conn.close()
 
 
 # ============================================================
-# CUSTOMER - GET BOOKING HISTORY
+# STAFF / ADMIN - GET ALL BOOKINGS
 #
-# GET /api/bookings/user/<user_id>
-# ============================================================
-
-@booking_bp.route(
-    "/user/<int:user_id>",
-    methods=["GET"],
-)
-def get_user_bookings(
-    user_id
-):
-
-    conn = None
-    cursor = None
-
-    try:
-
-        conn = get_connection()
-
-
-        if conn is None:
-
-            return jsonify({
-                "message":
-                    "Không thể kết nối database"
-            }), 500
-
-
-        cursor =conn.cursor()
-
-
-        cursor.execute(
-            """
-            SELECT
-                UserID,
-                FullName
-
-            FROM Users
-
-            WHERE UserID = ?
-            """,
-            user_id,
-        )
-
-
-        user = cursor.fetchone()
-
-
-        if user is None:
-
-            return jsonify({
-                "message":
-                    "Không tìm thấy người dùng"
-            }), 404
-
-
-        cursor.execute(
-            """
-            SELECT
-                B.BookingID,
-                B.UserID,
-                B.FieldID,
-                B.BookingDate,
-                B.StartTime,
-                B.EndTime,
-                B.TotalAmount,
-                B.Status,
-                B.CreatedAt,
-
-                F.FieldName,
-                F.FieldType,
-                F.Location,
-
-                U.FullName,
-                U.Phone,
-                U.Email
-
-            FROM Bookings B
-
-            INNER JOIN FootballFields F
-                ON B.FieldID = F.FieldID
-
-            INNER JOIN Users U
-                ON B.UserID = U.UserID
-
-            WHERE B.UserID = ?
-
-            ORDER BY
-                B.BookingDate DESC,
-                B.StartTime DESC,
-                B.BookingID DESC
-            """,
-
-            user_id,
-        )
-
-
-        bookings = [
-
-            row_to_booking(
-                row
-            )
-
-            for row
-            in cursor.fetchall()
-        ]
-
-
-        return jsonify({
-
-            "UserID":
-                user.UserID,
-
-            "FullName":
-                user.FullName,
-
-            "Total":
-                len(
-                    bookings
-                ),
-
-            "Bookings":
-                bookings,
-
-        }), 200
-
-
-    except Exception as error:
-
-        print(
-            "GET USER BOOKINGS ERROR:"
-        )
-
-        print(
-            error
-        )
-
-
-        return jsonify({
-            "message":
-                "Có lỗi xảy ra khi lấy lịch sử đặt sân"
-        }), 500
-
-
-    finally:
-
-        if cursor is not None:
-            cursor.close()
-
-        if conn is not None:
-            conn.close()
-
-
-# ============================================================
-# ADMIN - GET ALL BOOKINGS
+# GET:
+# /api/bookings/
 #
-# GET /api/bookings/?adminUserID=1
+# Optional:
+# /api/bookings/?status=PENDING
+# /api/bookings/?search=Nguyen
+#
+# T123-72:
+# Không còn cần:
+# ?adminUserID=1
+#
+# Manager được xác định từ JWT.
 # ============================================================
 
 @booking_bp.route(
     "/",
     methods=["GET"],
+)
+@jwt_required
+@role_required(
+    "ADMIN",
+    "STAFF"
 )
 def get_all_bookings():
 
@@ -1097,13 +851,57 @@ def get_all_bookings():
 
     try:
 
-        admin_user_id = request.args.get(
-                "adminUserID"
-            )
+        # ====================================================
+        # T123-72
+        # ====================================================
 
+        manager_user_id = (
+            current_user_id()
+        )
+
+        status_filter = str(
+            request.args.get(
+                "status"
+            )
+            or ""
+        ).strip().upper()
+
+        search_text = str(
+            request.args.get(
+                "search"
+            )
+            or ""
+        ).strip()
+
+        # ====================================================
+        # VALIDATE STATUS FILTER
+        # ====================================================
+
+        if (
+            status_filter
+            and
+            status_filter
+            not in
+            ALLOWED_BOOKING_STATUSES
+        ):
+
+            return jsonify({
+
+                "message":
+                    "Trạng thái lọc không hợp lệ",
+
+                "allowedStatus":
+                    sorted(
+                        ALLOWED_BOOKING_STATUSES
+                    ),
+
+            }), 400
+
+        # ====================================================
+        # DATABASE
+        # ====================================================
 
         conn = get_connection()
-
 
         if conn is None:
 
@@ -1112,26 +910,29 @@ def get_all_bookings():
                     "Không thể kết nối database"
             }), 500
 
+        cursor = conn.cursor()
 
-        cursor =  conn.cursor()
+        # ====================================================
+        # CHECK MANAGER IN CURRENT DATABASE
+        # ====================================================
 
+        manager = get_booking_manager(
+            cursor,
+            manager_user_id,
+        )
 
-        admin = get_admin(
-                cursor,
-                admin_user_id
-            )
-
-
-        if admin is None:
+        if manager is None:
 
             return jsonify({
                 "message":
                     "Bạn không có quyền quản lý booking"
             }), 403
 
+        # ====================================================
+        # BUILD QUERY
+        # ====================================================
 
-        cursor.execute(
-            """
+        query = """
             SELECT
                 B.BookingID,
                 B.UserID,
@@ -1159,12 +960,74 @@ def get_all_bookings():
             INNER JOIN Users U
                 ON B.UserID = U.UserID
 
+            WHERE 1 = 1
+        """
+
+        params = []
+
+        if status_filter:
+
+            query += """
+                AND UPPER(
+                    LTRIM(
+                        RTRIM(B.Status)
+                    )
+                ) = ?
+            """
+
+            params.append(
+                status_filter
+            )
+
+        if search_text:
+
+            keyword = (
+                f"%{search_text}%"
+            )
+
+            query += """
+                AND
+                (
+                    CAST(
+                        B.BookingID
+                        AS NVARCHAR(50)
+                    ) LIKE ?
+
+                    OR U.FullName LIKE ?
+
+                    OR U.Phone LIKE ?
+
+                    OR U.Email LIKE ?
+
+                    OR F.FieldName LIKE ?
+
+                    OR CONVERT(
+                        NVARCHAR(10),
+                        B.BookingDate,
+                        23
+                    ) LIKE ?
+                )
+            """
+
+            params.extend([
+                keyword,
+                keyword,
+                keyword,
+                keyword,
+                keyword,
+                keyword,
+            ])
+
+        query += """
             ORDER BY
                 B.CreatedAt DESC,
                 B.BookingID DESC
-            """
-        )
+        """
 
+        cursor.execute(
+            query,
+            *params,
+        )
 
         bookings = [
 
@@ -1176,19 +1039,40 @@ def get_all_bookings():
             in cursor.fetchall()
         ]
 
-
         return jsonify({
 
             "Total":
-                len(
-                    bookings
-                ),
+                len(bookings),
 
             "Bookings":
                 bookings,
 
-        }), 200
+            "Filters": {
 
+                "Status":
+                    status_filter
+                    or None,
+
+                "Search":
+                    search_text
+                    or None,
+            },
+
+            "RequestedBy": {
+
+                "UserID":
+                    manager.UserID,
+
+                "FullName":
+                    manager.FullName,
+
+                "Role":
+                    str(
+                        manager.Role or ""
+                    ).strip().upper(),
+            },
+
+        }), 200
 
     except Exception as error:
 
@@ -1196,35 +1080,49 @@ def get_all_bookings():
             "GET ALL BOOKINGS ERROR:"
         )
 
-        print(
-            error
-        )
-
+        print(error)
 
         return jsonify({
             "message":
                 "Có lỗi xảy ra khi lấy danh sách booking"
         }), 500
 
-
     finally:
 
         if cursor is not None:
+
             cursor.close()
 
         if conn is not None:
+
             conn.close()
 
 
 # ============================================================
-# ADMIN - UPDATE BOOKING STATUS
+# STAFF / ADMIN - UPDATE BOOKING STATUS
 #
-# PATCH /api/bookings/<booking_id>/status
+# PATCH:
+# /api/bookings/<booking_id>/status
+#
+# Body:
+#
+# {
+#     "Status": "CONFIRMED"
+# }
+#
+# T123-72:
+# Không còn gửi AdminUserID từ frontend.
+# Manager lấy từ JWT.
 # ============================================================
 
 @booking_bp.route(
     "/<int:booking_id>/status",
     methods=["PATCH"],
+)
+@jwt_required
+@role_required(
+    "ADMIN",
+    "STAFF"
 )
 def update_booking_status(
     booking_id
@@ -1235,24 +1133,31 @@ def update_booking_status(
 
     try:
 
-        data =request.get_json(
+        data = (
+            request.get_json(
                 silent=True
-            ) or {}
-
+            )
+            or {}
+        )
 
         new_status = str(
-                data.get(
-                    "Status"
-                )
-                or
-                ""
-            ).strip().upper()
-
-
-        admin_user_id = data.get(
-                "AdminUserID"
+            data.get(
+                "Status"
             )
+            or ""
+        ).strip().upper()
 
+        # ====================================================
+        # T123-72
+        # ====================================================
+
+        manager_user_id = (
+            current_user_id()
+        )
+
+        # ====================================================
+        # VALIDATE NEW STATUS
+        # ====================================================
 
         if (
             new_status
@@ -1272,9 +1177,11 @@ def update_booking_status(
 
             }), 400
 
+        # ====================================================
+        # DATABASE
+        # ====================================================
 
         conn = get_connection()
-
 
         if conn is None:
 
@@ -1283,30 +1190,28 @@ def update_booking_status(
                     "Không thể kết nối database"
             }), 500
 
-
         cursor = conn.cursor()
 
-
         # ====================================================
-        # CHECK ADMIN
+        # CHECK MANAGER
         # ====================================================
 
-        admin = get_admin(
-                cursor,
-                admin_user_id
-            )
+        manager = get_booking_manager(
+            cursor,
+            manager_user_id,
+        )
 
-
-        if admin is None:
+        if manager is None:
 
             return jsonify({
                 "message":
                     "Bạn không có quyền cập nhật booking"
             }), 403
 
-
         # ====================================================
-        # GET CURRENT STATUS
+        # LOCK BOOKING ROW
+        #
+        # Giảm race condition khi nhiều staff cùng update.
         # ====================================================
 
         cursor.execute(
@@ -1315,32 +1220,30 @@ def update_booking_status(
                 BookingID,
                 Status
 
-            FROM Bookings
+            FROM Bookings WITH (
+                UPDLOCK,
+                HOLDLOCK
+            )
 
             WHERE BookingID = ?
             """,
-
             booking_id,
         )
 
-
         booking = cursor.fetchone()
 
-
         if booking is None:
+
+            conn.rollback()
 
             return jsonify({
                 "message":
                     "Không tìm thấy booking"
             }), 404
 
-
         current_status = str(
-                booking.Status
-                or
-                ""
-            ).strip().upper()
-
+            booking.Status or ""
+        ).strip().upper()
 
         if (
             current_status
@@ -1348,17 +1251,20 @@ def update_booking_status(
             ALLOWED_BOOKING_STATUSES
         ):
 
+            conn.rollback()
+
             return jsonify({
                 "message":
                     "Trạng thái hiện tại của booking không hợp lệ"
             }), 409
 
+        # ====================================================
+        # STATUS ALREADY SAME
+        # ====================================================
 
-        if (
-            new_status
-            ==
-            current_status
-        ):
+        if new_status == current_status:
+
+            conn.rollback()
 
             return jsonify({
 
@@ -1373,16 +1279,16 @@ def update_booking_status(
 
             }), 200
 
-
         # ====================================================
-        # CHECK TRANSITION
+        # CHECK STATUS TRANSITION
         # ====================================================
 
-        allowed_next_status = STATUS_TRANSITIONS.get(
+        allowed_next_status = (
+            STATUS_TRANSITIONS.get(
                 current_status,
-                set()
+                set(),
             )
-
+        )
 
         if (
             new_status
@@ -1390,15 +1296,27 @@ def update_booking_status(
             allowed_next_status
         ):
 
+            conn.rollback()
+
             return jsonify({
 
-                "message":
-                    f"Không thể chuyển từ "
-                    f"{current_status} "
-                    f"sang {new_status}",
+                "message": (
+                    f"Không thể chuyển từ {current_status} "
+                    f"sang {new_status}"
+                ),
 
-            }), 400
+                "OldStatus":
+                    current_status,
 
+                "RequestedStatus":
+                    new_status,
+
+                "AllowedNextStatus":
+                    sorted(
+                        allowed_next_status
+                    ),
+
+            }), 409
 
         # ====================================================
         # UPDATE
@@ -1412,14 +1330,22 @@ def update_booking_status(
 
             WHERE BookingID = ?
             """,
-
             new_status,
             booking_id,
         )
 
-
         conn.commit()
 
+        # ====================================================
+        # GET UPDATED BOOKING
+        # ====================================================
+
+        updated_booking = (
+            get_booking_row(
+                cursor,
+                booking_id,
+            )
+        )
 
         return jsonify({
 
@@ -1435,11 +1361,30 @@ def update_booking_status(
             "Status":
                 new_status,
 
-            "UpdatedBy":
-                admin.UserID,
+            "UpdatedBy": {
+
+                "UserID":
+                    manager.UserID,
+
+                "FullName":
+                    manager.FullName,
+
+                "Role":
+                    str(
+                        manager.Role or ""
+                    ).strip().upper(),
+            },
+
+            "Booking": (
+                row_to_booking(
+                    updated_booking
+                )
+                if updated_booking
+                is not None
+                else None
+            ),
 
         }), 200
-
 
     except Exception as error:
 
@@ -1447,25 +1392,23 @@ def update_booking_status(
             "UPDATE BOOKING STATUS ERROR:"
         )
 
-        print(
-            error
-        )
-
+        print(error)
 
         if conn is not None:
-            conn.rollback()
 
+            conn.rollback()
 
         return jsonify({
             "message":
                 "Có lỗi xảy ra khi cập nhật trạng thái booking"
         }), 500
 
-
     finally:
 
         if cursor is not None:
+
             cursor.close()
 
         if conn is not None:
+
             conn.close()

@@ -1,22 +1,25 @@
 import {
   useEffect,
-  useState
+  useState,
 } from "react";
 
 import {
   Link,
   NavLink,
-  useNavigate
+  useNavigate,
 } from "react-router-dom";
 
 import {
-  ChevronDown,
   LogOut,
-  UserRound
+  UserRound,
 } from "lucide-react";
 
 import logoIcon
   from "../../assets/icons/ball.png";
+import {
+  getStoredUser,
+  logoutUser,
+} from "../../services/auth_service";
 
 import "./Navbar.css";
 
@@ -31,49 +34,30 @@ function Navbar() {
     useState(null);
 
 
-  /* =========================================================
-     LOAD USER
-  ========================================================= */
+  // =========================================================
+  // LOAD CURRENT USER
+  // =========================================================
 
   const loadUser = () => {
 
-    try {
-
-      const savedUser =
-        JSON.parse(
-          localStorage.getItem(
-            "user"
-          )
-        );
-
-
-      setUser(
-        savedUser
-      );
-
-    } catch {
-
-      setUser(
-        null
-      );
-    }
+    setUser(
+      getStoredUser()
+    );
   };
 
+
+  // =========================================================
+  // LISTEN AUTH CHANGE
+  // =========================================================
 
   useEffect(() => {
 
     loadUser();
 
 
-    /*
-      Event custom này giúp Navbar đổi ngay
-      sau Login / Logout.
-    */
-
     const handleAuthChanged = () => {
 
       loadUser();
-
     };
 
 
@@ -89,49 +73,36 @@ function Navbar() {
         "auth-changed",
         handleAuthChanged
       );
-
     };
 
   }, []);
 
 
-  /* =========================================================
-     LOGOUT
-  ========================================================= */
+  // =========================================================
+  // LOGOUT
+  // =========================================================
 
   const handleLogout = () => {
 
-    localStorage.removeItem(
-      "user"
-    );
+  logoutUser();
 
 
-    localStorage.removeItem(
-      "bookingDraft"
-    );
+  setUser(null);
 
 
-    setUser(
-      null
-    );
+  navigate(
+    "/",
+    {
+      replace:
+        true,
+    }
+  );
+};
 
 
-    window.dispatchEvent(
-      new Event(
-        "auth-changed"
-      )
-    );
-
-
-    navigate(
-      "/"
-    );
-  };
-
-
-  /* =========================================================
-     USER DISPLAY NAME
-  ========================================================= */
+  // =========================================================
+  // DISPLAY NAME
+  // =========================================================
 
   const displayName =
     user?.FullName
@@ -145,143 +116,101 @@ function Navbar() {
 
   return (
 
-    <header
-      className="navbar"
-    >
+    <header className="navbar">
 
-      <div
-        className="navbar-container"
-      >
+      <div className="navbar-container">
 
-        {/* LOGO */}
+
+        {/* ===================================================
+            LOGO
+        =================================================== */}
 
         <Link
-
           to="/"
-
           className="navbar-brand"
-
         >
 
           <img
-
-            src={
-              logoIcon
-            }
-
+            src={logoIcon}
             alt="Logo Sân Bóng Xuân Son"
-
             className="navbar-logo-image"
-
           />
 
-
           <span>
-
             Sân Bóng Xuân Son
-
           </span>
 
         </Link>
 
 
-        {/* MENU */}
+        {/* ===================================================
+            MENU
+        =================================================== */}
 
-        <nav
-          className="navbar-menu"
-        >
+        <nav className="navbar-menu">
 
           <NavLink
-
             to="/"
-
             className={
               ({ isActive }) =>
                 isActive
                   ? "navbar-link active"
                   : "navbar-link"
             }
-
           >
-
             Trang chủ
-
           </NavLink>
 
 
           <NavLink
-
             to="/fields"
-
             className={
               ({ isActive }) =>
                 isActive
                   ? "navbar-link active"
                   : "navbar-link"
             }
-
           >
-
             Danh sách sân
-
           </NavLink>
 
 
           <NavLink
-
-            to={
-              user
-                ? "/account"
-                : "/login?redirect=%2Faccount"
-            }
-
+            to="/bookings"
             className={
               ({ isActive }) =>
                 isActive
                   ? "navbar-link active"
                   : "navbar-link"
             }
-
           >
-
             Lịch đặt
-
           </NavLink>
 
 
           <NavLink
-
             to="/pricing"
-
             className={
               ({ isActive }) =>
                 isActive
                   ? "navbar-link active"
                   : "navbar-link"
             }
-
           >
-
             Bảng giá
-
           </NavLink>
 
 
           <NavLink
-
             to="/about"
-
             className={
               ({ isActive }) =>
                 isActive
                   ? "navbar-link active"
                   : "navbar-link"
             }
-
           >
-
             Giới thiệu
-
           </NavLink>
 
 
@@ -289,35 +218,25 @@ function Navbar() {
             href="#contact"
             className="navbar-link"
           >
-
             Liên hệ
-
           </a>
 
         </nav>
 
 
-        {/* AUTH */}
+        {/* ===================================================
+            AUTH
+        =================================================== */}
 
         {
           user
             ? (
 
-              <div
-                className="navbar-user-area"
-              >
+              <div className="navbar-user-area">
 
-                <Link
+                <div className="navbar-user-info">
 
-                  to="/account"
-
-                  className="navbar-user-button"
-
-                >
-
-                  <div
-                    className="navbar-user-avatar"
-                  >
+                  <div className="navbar-user-avatar">
 
                     <UserRound
                       size={18}
@@ -326,39 +245,34 @@ function Navbar() {
                   </div>
 
 
-                  <span>
+                  <div className="navbar-user-content">
 
-                    {
-                      displayName
-                    }
+                    <span className="navbar-user-label">
+                      Đã đăng nhập
+                    </span>
 
-                  </span>
+                    <span className="navbar-user-name">
+                      {displayName}
+                    </span>
 
+                  </div>
 
-                  <ChevronDown
-                    size={15}
-                  />
-
-                </Link>
+                </div>
 
 
                 <button
-
                   type="button"
-
                   className="navbar-logout-button"
-
-                  onClick={
-                    handleLogout
-                  }
-
+                  onClick={handleLogout}
                 >
 
                   <LogOut
                     size={17}
                   />
 
-                  Đăng xuất
+                  <span>
+                    Đăng xuất
+                  </span>
 
                 </button>
 
@@ -367,33 +281,21 @@ function Navbar() {
             )
             : (
 
-              <div
-                className="navbar-auth"
-              >
+              <div className="navbar-auth">
 
                 <Link
-
                   to="/login"
-
                   className="login-link"
-
                 >
-
                   Đăng nhập
-
                 </Link>
 
 
                 <Link
-
                   to="/register"
-
                   className="register-btn"
-
                 >
-
                   Đăng ký
-
                 </Link>
 
               </div>
@@ -404,7 +306,6 @@ function Navbar() {
       </div>
 
     </header>
-
   );
 }
 

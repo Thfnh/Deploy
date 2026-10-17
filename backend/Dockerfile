@@ -23,4 +23,8 @@ COPY . .
 
 EXPOSE 5000
 
+<<<<<<< HEAD
 CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-5000} app:app"]
+=======
+CMD ["python", "app.py"]
+>>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec

@@ -1,74 +1,12 @@
 import {
-  useEffect,
-  useMemo,
-  useState
-} from "react";
-
-import {
-  getFields,
-  updateFieldPrice,
-  createField
-} from "../../services/field_service";
-
-import {
-  getAllBookings,
-  updateBookingStatus
-} from "../../services/booking_service";
-
-import "./Admin.css";
-
-
-/* =========================================================
-   DEFAULT FIELD
-========================================================= */
-
-const EMPTY_FIELD = {
-  FieldName: "",
-  FieldType: "5 player",
-  Location: "",
-  Image: "",
-  Status: "AVAILABLE",
-  StartTime: "06:00",
-  EndTime: "16:00",
-  Price: ""
-};
-
-
-/* =========================================================
-   BOOKING STATUS
-========================================================= */
-
-const BOOKING_STATUS = {
-
-  PENDING: {
-    label: "Chờ xác nhận",
-    background: "#fef3c7",
-    color: "#b45309"
-  },
-
-  CONFIRMED: {
-    label: "Đã xác nhận",
-    background: "#dcfce7",
-    color: "#15803d"
-  },
-
-  CANCELLED: {
-    label: "Đã hủy",
-    background: "#fee2e2",
-    color: "#dc2626"
-  },
-
-  COMPLETED: {
-    label: "Hoàn thành",
-    background: "#dbeafe",
-    color: "#1d4ed8"
-  }
-
-};
-
+  useNavigate,
+  useOutletContext,
+} from "react-router-dom";
 
 function Admin() {
+  const navigate = useNavigate();
 
+<<<<<<< HEAD
   /* =========================================================
      USER
   ========================================================= */
@@ -1406,21 +1344,39 @@ function Admin() {
   /* =========================================================
      UI
   ========================================================= */
+=======
+  const {
+    user,
+    role,
+    isAdmin,
+  } = useOutletContext();
+>>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
 
   return (
+    <>
+      <div className="title-row">
+        <div>
+          <h1>TỔNG QUAN</h1>
 
-    <div
-      className="admin-container"
-    >
+          <p>
+            Xin chào{" "}
+            <strong>
+              {user?.FullName ||
+                user?.Email ||
+                "Tài khoản quản lý"}
+            </strong>
+          </p>
+        </div>
+      </div>
 
-      {/* =====================================================
-          SIDEBAR
-      ====================================================== */}
+      <div className="cards">
+        {isAdmin && (
+          <div className="card">
+            <p>Quản lý sân bóng</p>
 
-      <aside
-        className="sidebar"
-      >
+            <h2>⚽</h2>
 
+<<<<<<< HEAD
         <h2>
           ⚽ SÂN BÓNG
         </h2>
@@ -1594,45 +1550,40 @@ function Admin() {
                     event.target.value
                   );
                 }
+=======
+            <button
+              type="button"
+              className="edit-btn"
+              onClick={() =>
+                navigate("/admin/fields")
+>>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
               }
-            }
-
-          />
-
-
-          <div
-            className="admin-user"
-          >
-
-            <span>
-              🔔
-            </span>
-
-
-            <div>
-
-              <b>
-
-                {
-                  user?.FullName
-                  ||
-                  "Admin sân bóng"
-                }
-
-              </b>
-
-
-              <small>
-                Quản trị viên
-              </small>
-
-            </div>
-
+            >
+              Truy cập
+            </button>
           </div>
+        )}
 
+        <div className="card">
+          <p>Quản lý đặt sân</p>
+
+          <h2>📅</h2>
+
+          <button
+            type="button"
+            className="edit-btn"
+            onClick={() =>
+              navigate("/admin/bookings")
+            }
+          >
+            Truy cập
+          </button>
         </div>
 
+        <div className="card">
+          <p>Vai trò hiện tại</p>
 
+<<<<<<< HEAD
         {/* =================================================
             FIELD MANAGEMENT
         ================================================= */}
@@ -2657,456 +2608,19 @@ function Admin() {
 
           <div
             className="modal"
+=======
+          <h2
+            style={{
+              fontSize: "22px",
+            }}
+>>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
           >
-
-            <div
-              className="modal-content"
-            >
-
-              <h2>
-                Thêm sân mới
-              </h2>
-
-
-              <label>
-                Tên sân
-              </label>
-
-              <input
-
-                placeholder="Ví dụ: Sân 3"
-
-                value={
-                  newField.FieldName
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "FieldName",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                Loại sân
-              </label>
-
-              <select
-
-                value={
-                  newField.FieldType
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "FieldType",
-                      event.target.value
-                    )
-                }
-
-              >
-
-                <option value="5 player">
-                  5 player
-                </option>
-
-                <option value="7 player">
-                  7 player
-                </option>
-
-                <option value="11 player">
-                  11 player
-                </option>
-
-              </select>
-
-
-              <label>
-                Địa điểm
-              </label>
-
-              <input
-
-                placeholder="Ví dụ: Hà Nội"
-
-                value={
-                  newField.Location
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "Location",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                URL hình ảnh
-              </label>
-
-              <input
-
-                placeholder="Không bắt buộc"
-
-                value={
-                  newField.Image
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "Image",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                Trạng thái
-              </label>
-
-              <select
-
-                value={
-                  newField.Status
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "Status",
-                      event.target.value
-                    )
-                }
-
-              >
-
-                <option value="AVAILABLE">
-                  AVAILABLE
-                </option>
-
-                <option value="MAINTENANCE">
-                  MAINTENANCE
-                </option>
-
-              </select>
-
-
-              <label>
-                Giờ bắt đầu
-              </label>
-
-              <input
-
-                type="time"
-
-                value={
-                  newField.StartTime
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "StartTime",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                Giờ kết thúc
-              </label>
-
-              <input
-
-                type="time"
-
-                value={
-                  newField.EndTime
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "EndTime",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                Giá / giờ
-              </label>
-
-              <input
-
-                type="number"
-
-                min="0"
-
-                step="1000"
-
-                placeholder="Ví dụ: 350000"
-
-                value={
-                  newField.Price
-                }
-
-                onChange={
-                  event =>
-                    updateNewField(
-                      "Price",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <button
-
-                type="button"
-
-                className="save-btn"
-
-                disabled={
-                  adding
-                }
-
-                onClick={
-                  handleAddField
-                }
-
-              >
-
-                {
-                  adding
-                    ? "Đang thêm..."
-                    : "Thêm sân"
-                }
-
-              </button>
-
-
-              <button
-
-                type="button"
-
-                className="cancel-btn"
-
-                disabled={
-                  adding
-                }
-
-                onClick={
-                  () => {
-
-                    setShowAddModal(
-                      false
-                    );
-
-                    setNewField(
-                      EMPTY_FIELD
-                    );
-
-                  }
-                }
-
-              >
-
-                Hủy
-
-              </button>
-
-            </div>
-
-          </div>
-
-        )
-      }
-
-
-      {/* =====================================================
-          EDIT PRICE MODAL
-      ====================================================== */}
-
-      {
-        editField
-        &&
-        (
-
-          <div
-            className="modal"
-          >
-
-            <div
-              className="modal-content"
-            >
-
-              <h2>
-                Sửa giá sân
-              </h2>
-
-
-              <p>
-
-                <b>
-                  {
-                    editField.FieldName
-                  }
-                </b>
-
-              </p>
-
-
-              <label>
-                Giờ bắt đầu
-              </label>
-
-              <input
-
-                type="time"
-
-                value={
-                  editField.StartTime
-                }
-
-                onChange={
-                  event =>
-                    updateEditField(
-                      "StartTime",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                Giờ kết thúc
-              </label>
-
-              <input
-
-                type="time"
-
-                value={
-                  editField.EndTime
-                }
-
-                onChange={
-                  event =>
-                    updateEditField(
-                      "EndTime",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <label>
-                Giá tiền
-              </label>
-
-              <input
-
-                type="number"
-
-                min="0"
-
-                step="1000"
-
-                value={
-                  editField.Price
-                  ??
-                  ""
-                }
-
-                onChange={
-                  event =>
-                    updateEditField(
-                      "Price",
-                      event.target.value
-                    )
-                }
-
-              />
-
-
-              <button
-
-                type="button"
-
-                className="save-btn"
-
-                disabled={
-                  saving
-                }
-
-                onClick={
-                  handleSaveEdit
-                }
-
-              >
-
-                {
-                  saving
-                    ? "Đang lưu..."
-                    : "Lưu thay đổi"
-                }
-
-              </button>
-
-
-              <button
-
-                type="button"
-
-                className="cancel-btn"
-
-                disabled={
-                  saving
-                }
-
-                onClick={
-                  () =>
-                    setEditField(
-                      null
-                    )
-                }
-
-              >
-
-                Hủy
-
-              </button>
-
-            </div>
-
-          </div>
-
-        )
-      }
-
-    </div>
+            {role}
+          </h2>
+        </div>
+      </div>
+    </>
   );
 }
-
 
 export default Admin;

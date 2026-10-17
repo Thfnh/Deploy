@@ -1,281 +1,125 @@
+<<<<<<< HEAD
 const API_URL = `${import.meta.env.VITE_API_URL}/api/fields`;;
+=======
+import {
+  apiRequest,
+} from "./api";
+>>>>>>> 2424492bed04dead402c12d36ab5e97bec9b6cec
 
 
-/* =========================================================
-   GET ALL FIELDS
-========================================================= */
+// ============================================================
+// BE-03
+// GET ALL FIELDS
+//
+// PUBLIC
+// ============================================================
 
-export const getFields = async () => {
+export const getFields =
+  async () => {
 
-  const response = await fetch(
-    `${API_URL}/`
-  );
+    return apiRequest(
+      "/api/fields/",
+      {
+        method:
+          "GET",
 
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể lấy danh sách sân"
+        auth:
+          false,
+      }
     );
-  }
-
-  return result;
-};
+  };
 
 
-/* =========================================================
-   GET ONE FIELD
-========================================================= */
+// ============================================================
+// BE-05
+// GET AVAILABILITY ONE FIELD
+//
+// PUBLIC
+// ============================================================
 
-export const getFieldById = async (
-  fieldID
-) => {
+export const getFieldAvailability =
+  async (
+    fieldID,
+    date
+  ) => {
 
-  const response = await fetch(
-    `${API_URL}/${fieldID}`
-  );
+    const params =
+      new URLSearchParams({
+        date,
+      });
 
-  const result = await response.json();
 
-  if (!response.ok) {
+    return apiRequest(
+      `/api/fields/${encodeURIComponent(
+        fieldID
+      )}/availability?${params.toString()}`,
+      {
+        method:
+          "GET",
 
-    throw new Error(
-      result.message ||
-      "Không thể lấy thông tin sân"
+        auth:
+          false,
+      }
     );
-  }
-
-  return result;
-};
+  };
 
 
-/* =========================================================
-   GET FIELD AVAILABILITY
-   BE-05
-========================================================= */
+// ============================================================
+// BE-05.1
+// GET ALL FIELD AVAILABILITY
+//
+// PUBLIC
+// ============================================================
 
-export const getFieldAvailability = async (
-  fieldID,
-  date
-) => {
+export const getAllFieldsAvailability =
+  async (
+    date
+  ) => {
 
-  const response = await fetch(
-    `${API_URL}/${fieldID}/availability?date=${date}`
-  );
+    const params =
+      new URLSearchParams({
+        date,
+      });
 
-  const result = await response.json();
 
-  if (!response.ok) {
+    return apiRequest(
+      `/api/fields/availability?${params.toString()}`,
+      {
+        method:
+          "GET",
 
-    throw new Error(
-      result.message ||
-      "Không thể kiểm tra lịch sân"
+        auth:
+          false,
+      }
     );
-  }
-
-  return result;
-};
+  };
 
 
-/* =========================================================
-   CREATE FIELD
-========================================================= */
+// ============================================================
+// UPDATE FIELD PRICE
+//
+// JWT required
+// ADMIN only
+// ============================================================
 
-export const createField = async (
-  data
-) => {
+export const updateFieldPrice =
+  async (
+    fieldID,
+    data
+  ) => {
 
-  const response = await fetch(
-    `${API_URL}/`,
-    {
-      method: "POST",
+    return apiRequest(
+      `/api/fields/price/${encodeURIComponent(
+        fieldID
+      )}`,
+      {
+        method:
+          "PUT",
 
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
-
-      body: JSON.stringify(data)
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể thêm sân"
+        body:
+          JSON.stringify(
+            data
+          ),
+      }
     );
-  }
-
-  return result;
-};
-
-
-/* =========================================================
-   UPDATE FIELD
-========================================================= */
-
-export const updateField = async (
-  fieldID,
-  data
-) => {
-
-  const response = await fetch(
-    `${API_URL}/${fieldID}`,
-    {
-      method: "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
-
-      body: JSON.stringify(data)
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể cập nhật sân"
-    );
-  }
-
-  return result;
-};
-
-
-/* =========================================================
-   UPDATE FIELD STATUS
-========================================================= */
-
-export const updateFieldStatus = async (
-  fieldID,
-  status
-) => {
-
-  const response = await fetch(
-    `${API_URL}/${fieldID}/status`,
-    {
-      method: "PATCH",
-
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
-
-      body: JSON.stringify({
-        Status: status
-      })
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể cập nhật trạng thái sân"
-    );
-  }
-
-  return result;
-};
-
-
-/* =========================================================
-   UPDATE PRICE
-========================================================= */
-
-export const updateFieldPrice = async (
-  priceID,
-  data
-) => {
-
-  const response = await fetch(
-    `${API_URL}/price/${priceID}`,
-    {
-      method: "PUT",
-
-      headers: {
-        "Content-Type":
-          "application/json"
-      },
-
-      body: JSON.stringify(data)
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể cập nhật giá"
-    );
-  }
-
-  return result;
-};
-
-
-/* =========================================================
-   DELETE FIELD
-========================================================= */
-
-export const deleteField = async (
-  fieldID
-) => {
-
-  const response = await fetch(
-    `${API_URL}/${fieldID}`,
-    {
-      method: "DELETE"
-    }
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể xóa sân"
-    );
-  }
-
-  return result;
-};
-
-/* =========================================================
-   GET ALL FIELDS AVAILABILITY
-   BE-05.1
-========================================================= */
-
-export const getAllFieldsAvailability = async (date) => {
-
-  const response = await fetch(
-    `${API_URL}/availability?date=${encodeURIComponent(date)}`
-  );
-
-  const result = await response.json();
-
-  if (!response.ok) {
-
-    throw new Error(
-      result.message ||
-      "Không thể kiểm tra lịch toàn bộ sân"
-    );
-  }
-
-  return result;
-};
+  };
