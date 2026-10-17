@@ -11,6 +11,44 @@ paths:
   # ------------------------------------
   # 1. API Authentication (routes/auth.py)
   # ------------------------------------
+  /api/auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: "Đăng ký tài khoản CUSTOMER"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [fullName, username, email, phone, password]
+              properties:
+                fullName: { type: string, example: "Nguyen Van A" }
+                username: { type: string, example: "nguyenvana" }
+                email: { type: string, format: email, example: "a@example.com" }
+                phone: { type: string, example: "0901234567" }
+                password: { type: string, format: password, example: "P@ssw0rd" }
+      responses:
+        '201':
+          description: "Đăng ký thành công"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  message: { type: string, example: "Đăng ký thành công" }
+                  user:
+                    type: object
+                    properties:
+                      userId: { type: integer, example: 123 }
+                      username: { type: string, example: "nguyenvana" }
+                      email: { type: string, example: "a@example.com" }
+                      role: { type: string, example: "CUSTOMER" }
+        '400': { description: "Thiếu trường hoặc dữ liệu sai định dạng" }
+        '409': { description: "Username, Email hoặc Phone đã tồn tại" }
+
   /api/auth/login:
     post:
       tags:

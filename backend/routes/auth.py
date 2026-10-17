@@ -8,6 +8,7 @@ from services.auth_service import (
     AuthenticationError,
     authenticate_user,
     get_user_by_id,
+    register_customer,
 )
 
 from services.jwt_service import (
@@ -21,6 +22,25 @@ auth_bp = Blueprint(
     "auth",
     __name__
 )
+
+
+@auth_bp.route("/register", methods=["POST"])
+def register():
+    data = request.get_json(silent=True)
+    if not isinstance(data, dict):
+        return jsonify({"success": False, "message": "Dữ liệu JSON không hợp lệ"}), 400
+    try:
+        user = register_customer(
+            data.get("fullName"), data.get("username"), data.get("email"),
+            data.get("phone"), data.get("password"),
+        )
+    except AuthenticationError as error:
+        return jsonify({"success": False, "message": error.message}), error.status_code
+    except Exception:
+        import logging
+        logging.getLogger(__name__).exception("Customer registration failed")
+        return jsonify({"success": False, "message": "Không thể đăng ký tài khoản"}), 500
+    return jsonify({"success": True, "message": "Đăng ký thành công", "user": user}), 201
 
 
 def to_public_user(
