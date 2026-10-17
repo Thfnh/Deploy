@@ -1,19 +1,14 @@
 services:
-  frontend:
-    build: ./frontend
-    container_name: frontend
-    ports:
-      - "5173:5173"
-    environment:
-      VITE_API_URL: http://localhost:5000
-
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: backend
+    restart: unless-stopped
     ports:
       - "5000:5000"
+    env_file:
+      - .env
     environment:
       DB_DRIVER: ${DB_DRIVER}
       DB_SERVER: ${DB_SERVER}
@@ -21,3 +16,9 @@ services:
       DB_USER: ${DB_USER}
       DB_PASSWORD: ${DB_PASSWORD}
       DB_TRUST_SERVER_CERTIFICATE: ${DB_TRUST_SERVER_CERTIFICATE}
+    networks:
+      - football-network
+
+networks:
+  football-network:
+    external: true
