@@ -278,10 +278,12 @@ def authenticate_user(
 
             FROM Users
 
-            WHERE Email = ?
+            WHERE Username = ?
+               OR Email = ?
                OR Phone = ?
             """,
 
+            account,
             account,
             account,
         )
