@@ -1,4 +1,3 @@
-import axios from "axios";
 import { useState } from "react";
 
 import {
@@ -16,6 +15,9 @@ import {
 } from "lucide-react";
 
 import AuthLayout from "../../components/AuthLayout/AuthLayout";
+import {
+  loginUser,
+} from "../../services/auth_service";
 
 import loginField from "../../assets/images/football-field.jpg";
 
@@ -112,206 +114,193 @@ function Login() {
   // =========================================================
 
   const handleSubmit = async (event) => {
-    event.preventDefault();
+  event.preventDefault();
 
-    if (loading) {
-      return;
-    }
-
-    setServerMessage("");
-
-    if (!validateForm()) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-
-      const apiUrl = (
-        import.meta.env.VITE_API_URL ||
-        "http://127.0.0.1:5000"
-      ).replace(/\/$/, "");
-
-      const response =
-        await axios.post(
-          `${apiUrl}/api/auth/login`,
-          {
-            account:
-              formData.account.trim(),
-
-            password:
-              formData.password,
-          }
-        );
+  if (loading) {
+    return;
+  }
 
 
-      // =====================================================
-      // LOGIN FAILED
-      // =====================================================
-
-      if (!response.data?.success) {
-        setServerMessage(
-          response.data?.message ||
-          "Sai tài khoản hoặc mật khẩu."
-        );
-
-        return;
-      }
+  setServerMessage("");
 
 
-      const user =
-        response.data.user;
+  if (!validateForm()) {
+    return;
+  }
 
 
-      if (!user?.UserID) {
-        setServerMessage(
-          "Không nhận được thông tin người dùng."
-        );
+  try {
 
-        return;
-      }
+    setLoading(
+      true
+    );
 
 
-      // =====================================================
-      // SAVE USER
-      // =====================================================
-
-      localStorage.setItem(
-        "user",
-        JSON.stringify(user)
+    const {
+      user,
+    } =
+      await loginUser(
+        formData.account.trim(),
+        formData.password
       );
 
 
-      window.dispatchEvent(
-        new Event("auth-changed")
-      );
-
+    if (!user?.UserID) {
 
       setServerMessage(
-        "Đăng nhập thành công."
+        "Không nhận được thông tin người dùng."
+      );
+
+      return;
+    }
+
+
+    setServerMessage(
+      "Đăng nhập thành công."
+    );
+
+
+    // =====================================================
+    // ROLE
+    // =====================================================
+
+    const role =
+      String(
+        user.Role || ""
+      )
+        .trim()
+        .toUpperCase();
+
+
+    // =====================================================
+    // REDIRECT URL
+    // =====================================================
+
+    const redirectTo =
+      searchParams.get(
+        "redirect"
       );
 
 
-      // =====================================================
-      // ROLE
-      // =====================================================
-
-      const role =
-        String(user.Role || "")
-          .trim()
-          .toUpperCase();
+    const safeRedirect =
+      redirectTo &&
+      redirectTo.startsWith("/") &&
+      !redirectTo.startsWith("//")
+        ? redirectTo
+        : null;
 
 
-      // =====================================================
-      // REDIRECT URL
-      // =====================================================
-
-      const redirectTo =
-        searchParams.get(
-          "redirect"
-        );
+    const redirectIsAdmin =
+      safeRedirect ===
+        "/admin" ||
+      safeRedirect?.startsWith(
+        "/admin/"
+      );
 
 
-      const safeRedirect =
-        redirectTo &&
-          redirectTo.startsWith("/") &&
-          !redirectTo.startsWith("//")
-          ? redirectTo
-          : null;
+    const canAccessAdmin =
+      role === "ADMIN" ||
+      role === "STAFF";
 
 
-      /*
-        CUSTOMER không được lợi dụng:
-        /login?redirect=/admin
-
-        để đi vào admin.
-      */
-
-      const redirectIsAdmin =
-        safeRedirect === "/admin" ||
-        safeRedirect?.startsWith(
-          "/admin/"
-        );
-
-
-      if (
-        safeRedirect &&
-        !(
-          redirectIsAdmin &&
-          role !== "ADMIN"
-        )
-      ) {
-        navigate(
-          safeRedirect,
-          {
-            replace: true,
-          }
-        );
-
-        return;
-      }
-
-
-      // =====================================================
-      // DEFAULT REDIRECT BY ROLE
-      // =====================================================
-
-      if (role === "ADMIN") {
-        navigate(
-          "/admin",
-          {
-            replace: true,
-          }
-        );
-
-        return;
-      }
-
-
-      /*
-        CUSTOMER hoặc user thông thường
-        không được tự động vào Admin.
-      */
+    if (
+      safeRedirect &&
+      !(
+        redirectIsAdmin &&
+        !canAccessAdmin
+      )
+    ) {
 
       navigate(
-        "/fields",
+        safeRedirect,
         {
-          replace: true,
+          replace:
+            true,
         }
       );
 
-    } catch (error) {
-      console.error(
-        "LOGIN ERROR:",
-        error
+      return;
+    }
+
+
+    // =====================================================
+    // DEFAULT ROLE REDIRECT
+    // =====================================================
+
+    if (
+      role === "ADMIN"
+    ) {
+
+      navigate(
+        "/admin",
+        {
+          replace:
+            true,
+        }
       );
 
-
-      if (
-        error.response?.status === 401
-      ) {
-        setServerMessage(
-          error.response?.data?.message ||
-          "Sai tài khoản hoặc mật khẩu."
-        );
-
-      } else if (
-        error.response?.data?.message
-      ) {
-        setServerMessage(
-          error.response.data.message
-        );
-
-      } else {
-        setServerMessage(
-          "Không thể kết nối tới máy chủ."
-        );
-      }
-
-    } finally {
-      setLoading(false);
+      return;
     }
-  };
+
+
+    if (
+      role === "STAFF"
+    ) {
+
+      navigate(
+        "/admin/bookings",
+        {
+          replace:
+            true,
+        }
+      );
+
+      return;
+    }
+
+
+    navigate(
+      "/fields",
+      {
+        replace:
+          true,
+      }
+    );
+
+  } catch (error) {
+
+    console.error(
+      "LOGIN ERROR:",
+      error
+    );
+
+
+    if (
+      error.status === 400 ||
+      error.status === 401 ||
+      error.status === 403
+    ) {
+
+      setServerMessage(
+        error.message ||
+        "Đăng nhập thất bại."
+      );
+
+    } else {
+
+      setServerMessage(
+        error.message ||
+        "Không thể kết nối tới máy chủ."
+      );
+    }
+
+  } finally {
+
+    setLoading(
+      false
+    );
+  }
+};
 
 
   return (

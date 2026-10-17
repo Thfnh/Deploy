@@ -60,27 +60,49 @@ function AdminLayout() {
   const isAdmin = role === "ADMIN";
 
   const isActive = (path) => {
-    if (path === "/admin") {
-      return location.pathname === "/admin";
-    }
+      if (path === "/admin") {
+        return location.pathname === "/admin";
+      }
 
-    return (
-      location.pathname === path ||
-      location.pathname.startsWith(`${path}/`)
+      return (
+        location.pathname === path ||
+        location.pathname.startsWith(`${path}/`)
+      );
+    };
+
+    const handleLogout = () => {
+
+    localStorage.removeItem(
+      "user"
     );
-  };
 
-  const handleLogout = () => {
-    localStorage.removeItem("user");
-    localStorage.removeItem("bookingDraft");
+    localStorage.removeItem(
+      "accessToken"
+    );
+
+    localStorage.removeItem(
+      "bookingDraft"
+    );
+
+    sessionStorage.removeItem(
+      "bookingDraft"
+    );
+
 
     window.dispatchEvent(
-      new Event("auth-changed")
+      new Event(
+        "auth-changed"
+      )
     );
 
-    navigate("/", {
-      replace: true,
-    });
+
+    navigate(
+      "/",
+      {
+        replace:
+          true,
+      }
+    );
   };
 
   return (
