@@ -6,16 +6,22 @@ from flask import Flask
 from flask_cors import CORS
 from flasgger import Swagger
 
+
 app = Flask(__name__)
 
 CORS(app)
 
 
-# import blueprint sau khi có app
+# ============================================================
+# BLUEPRINTS
+# ============================================================
+
 from routes.auth import auth_bp
 from routes.field import field_bp
 from routes.booking import booking_bp
 from routes.customer_booking import customer_booking_bp
+from routes.user import user_bp
+
 
 swagger = Swagger(
     app,
@@ -47,14 +53,23 @@ app.register_blueprint(
 )
 
 
+app.register_blueprint(
+    user_bp,
+    url_prefix="/api/users"
+)
+
+
 @app.route("/")
 def home():
+
     return {
-        "message": "Backend running"
+        "message":
+            "Backend running"
     }
 
 
 if __name__ == "__main__":
+
     app.run(
         host="0.0.0.0",
         port=5000,
