@@ -60,18 +60,58 @@ paths:
           application/json:
             schema:
               type: object
+              required: [password]
+              anyOf:
+                - required: [account]
+                - required: [email]
               properties:
                 account:
                   type: string
-                  example: "admin"
+                  description: "Username, email hoặc số điện thoại"
+                  example: "nguyenvana"
+                email:
+                  type: string
+                  format: email
+                  example: "admin@gmail.com"
                 password:
                   type: string
+                  format: password
                   example: "123456"
       responses:
         '200':
           description: "Đăng nhập thành công"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: true }
+                  accessToken: { type: string, example: "eyJhbGciOiJIUzI1NiJ9..." }
+                  tokenType: { type: string, example: "Bearer" }
+                  user:
+                    type: object
+                    properties:
+                      id: { type: integer, example: 123 }
+                      userId: { type: integer, example: 123 }
+                      email: { type: string, format: email, example: "admin@gmail.com" }
+                      role: { type: string, example: "ADMIN" }
         '401':
-          description: "Sai tài khoản hoặc mật khẩu"
+          description: "Tên đăng nhập hoặc mật khẩu không hợp lệ"
+        '400':
+          description: "Thiếu trường hoặc account không đúng định dạng"
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success: { type: boolean, example: false }
+                  message: { type: string, example: "Vui lòng kiểm tra thông tin đăng nhập" }
+                  errors:
+                    type: object
+                    properties:
+                      account: { type: array, items: { type: string }, example: ["Vui lòng nhập tên đăng nhập, email hoặc số điện thoại"] }
+                      email: { type: array, items: { type: string }, example: ["Email không đúng định dạng"] }
+                      password: { type: array, items: { type: string }, example: ["Vui lòng nhập mật khẩu"] }
 
   # ------------------------------------
   # 2. API Fields (routes/field.py)
@@ -401,6 +441,19 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/user/profile:
+    get:
+      tags:
+        - Users
+      summary: "Lấy hồ sơ bằng Bearer token (legacy path)"
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: "Trả về hồ sơ tài khoản trong token"
+        '401':
+          description: "Access token thiếu, sai hoặc hết hạn"
+
 components:
   securitySchemes:
     BearerAuth:
@@ -628,10 +681,6 @@ components:
           type: string
           nullable: true
           example: "?date=2026-10-04"
-  # ------------------------------------
-  # UC03 - User Profile
-  # ------------------------------------
-
   /api/users/me:
 
     get:
