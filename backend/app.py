@@ -20,7 +20,7 @@ from routes.auth import auth_bp
 from routes.field import field_bp
 from routes.booking import booking_bp
 from routes.customer_booking import customer_booking_bp
-from routes.user import user_bp
+from routes.user import get_my_profile, user_bp
 
 
 swagger = Swagger(
@@ -56,6 +56,15 @@ app.register_blueprint(
 app.register_blueprint(
     user_bp,
     url_prefix="/api/users"
+)
+
+
+# Legacy profile path retained for the login/profile integration contract.
+app.add_url_rule(
+    "/api/user/profile",
+    endpoint="user_profile_legacy",
+    view_func=get_my_profile,
+    methods=["GET"],
 )
 
 
