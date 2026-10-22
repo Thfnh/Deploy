@@ -1,409 +1,528 @@
-import {
-  useEffect,
-  useState,
-} from "react";
 
-import { Search } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import Navbar from "../../components/Navbar/Navbar";
 import FieldCard from "../../components/FieldCard/FieldCard";
 
-import field1 from "../../assets/images/football-field.jpg";
-
-import { getFields } from "../../services/field_service";
+import {
+  getAllFieldsAvailability,
+  getFields,
+} from "../../services/field_service";
 
 import "./FieldList.css";
 
+// Chuyển dữ liệu API về mảng
+const toArray = (payload) => {
+  if (Array.isArray(payload)) return payload;
+  if (Array.isArray(payload?.Fields)) return payload.Fields;
+  if (Array.isArray(payload?.fields)) return payload.fields;
+  if (Array.isArray(payload?.data)) return payload.data;
 
-function FieldList() {
+  return [];
+};
 
-  const [fields, setFields] =
-    useState([]);
+// Gom các dòng dữ liệu theo sân.
+// Một sân có thể có nhiều dòng giá theo khung giờ.
+const groupFieldRows = (payload) => {
+  const rows = toArray(payload);
+  const grouped = new Map();
 
-  const [keyword, setKeyword] =
+  rows.forEach((row) => {
+    const fieldID = row.FieldID ?? row.fieldID ?? row.id;
+
+    if (fieldID === undefined || fieldID === null) {
+      return;
+    }
+
+    if (!grouped.has(fieldID)) {
+      grouped.set(fieldID, {
+        FieldID: fieldID,
+        FieldName:
+          row.FieldName ??
+          row.fieldName ??
+          row.name ??
+          `Sân ${fieldID}`,
+        FieldType:
+          row.FieldType ??
+          row.fieldType ??
+          row.type ??
+          "",
+        Location:
+          row.Location ??
+          row.location ??
+          row.Address ??
+          row.address ??
+          "",
+        Status: row.Status ?? row.status ?? "AVAILABLE",
+        Prices: [],
+      });
+    }
+
+    const field = grouped.get(fieldID);
+
+    const hasPriceData =
+      row.PriceID !== undefined ||
+      row.Price !== undefined ||
+      row.StartTime !== undefined ||
+      row.EndTime !== undefined;
+
+    if (hasPriceData) {
+      const priceID =
+        row.PriceID ?? `${row.StartTime}-${row.EndTime}`;
+
+      const duplicated = field.Prices.some(
+        (item) =>
+          (item.PriceID ??
+            `${item.StartTime}-${item.EndTime}`) === priceID
+      );
+
+      if (!duplicated) {
+        field.Prices.push({
+          PriceID: row.PriceID,
+          StartTime: row.StartTime,
+          EndTime: row.EndTime,
+          Price: Number(row.Price ?? 0),
+        });
+      }
+    }
+  });
+
+  return Array.from(grouped.values());
+};
+
+// Lấy ngày hiện tại theo múi giờ của trình duyệt
+const localDateString = () => {
+  const now = new Date();
+
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+};
+
+const FieldList = () => {
+  // Danh sách sân
+  const [fields, setFields] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  // Tìm kiếm và lọc
+  const [search, setSearch] = useState("");
+  const [locationFilter, setLocationFilter] = useState("");
+  const [typeFilter, setTypeFilter] = useState("");
+
+  // Kiểm tra lịch trống
+  const [selectedDate, setSelectedDate] = useState("");
+  const [availability, setAvailability] = useState(null);
+  const [availabilityLoading, setAvailabilityLoading] =
+    useState(false);
+  const [availabilityError, setAvailabilityError] =
     useState("");
 
-  const [loading, setLoading] =
-    useState(true);
-
-  const [error, setError] =
-    useState("");
-
-
-  /* =========================================
-     T123-41 - BE-03
-     LOAD DANH SÁCH SÂN TỪ BACKEND
-  ========================================= */
-
+  // ==========================================
+  // LOAD FIELD LIST
+  // ==========================================
   useEffect(() => {
+    let cancelled = false;
+
+    const loadFields = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const data = await getFields();
+
+        if (!cancelled) {
+          setFields(groupFieldRows(data));
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err?.message || "Không thể tải danh sách sân."
+          );
+          setFields([]);
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
 
     loadFields();
 
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  // ==========================================
+  // LOAD AVAILABILITY WHEN DATE CHANGES
+  // ==========================================
+  useEffect(() => {
+    let cancelled = false;
 
-  const loadFields = async () => {
+    if (!selectedDate) {
+      setAvailability(null);
+      setAvailabilityError("");
+      setAvailabilityLoading(false);
 
-    try {
+      return undefined;
+    }
 
-      setLoading(true);
+    const loadAvailability = async () => {
+      setAvailabilityLoading(true);
+      setAvailabilityError("");
+      setAvailability(null);
 
-      setError("");
+      try {
+        const data =
+          await getAllFieldsAvailability(selectedDate);
 
-
-      const data =
-        await getFields();
-
-
-      /*
-       * Backend trả nhiều dòng cho một sân
-       * nếu sân có nhiều khung giá.
-       *
-       * BE-03 chỉ cần danh sách sân,
-       * nên gom theo FieldID.
-       */
-
-      const groupedFields = {};
-
-
-      data.forEach((row) => {
-
-        if (!groupedFields[row.FieldID]) {
-
-          groupedFields[row.FieldID] = {
-
-            id:
-              row.FieldID,
-
-            name:
-              row.FieldName,
-
-            address:
-              row.Location,
-
-            type:
-              row.FieldType,
-
-            image:
-              row.Image || field1,
-
-            rating:
-              4.8,
-
-            price:
-              row.Price !== null &&
-              row.Price !== undefined
-                ? Number(row.Price)
-                : 0,
-
-          };
-
-          return;
+        if (!cancelled) {
+          setAvailability(data);
         }
-
-
-        /*
-         * Nếu có nhiều khung giá
-         * thì lấy giá thấp nhất để hiển thị.
-         */
-
-        const current =
-          groupedFields[row.FieldID];
-
-
-        const newPrice =
-          Number(row.Price);
-
-
-        if (
-          !Number.isNaN(newPrice) &&
-          newPrice > 0 &&
-          (
-            current.price === 0 ||
-            newPrice < current.price
-          )
-        ) {
-
-          current.price =
-            newPrice;
-
+      } catch (err) {
+        if (!cancelled) {
+          setAvailability(null);
+          setAvailabilityError(
+            err?.message ||
+            "Không thể kiểm tra lịch trống của sân."
+          );
         }
+      } finally {
+        if (!cancelled) {
+          setAvailabilityLoading(false);
+        }
+      }
+    };
 
-      });
+    loadAvailability();
 
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedDate]);
 
-      /*
-       * Jira T123-41 yêu cầu
-       * load tối đa 20 sân.
-       */
+  // ==========================================
+  // FILTER OPTIONS
+  // ==========================================
+  const locations = useMemo(() => {
+    return [
+      ...new Set(
+        fields
+          .map((field) => field.Location)
+          .filter(Boolean)
+      ),
+    ].sort();
+  }, [fields]);
 
-      const fieldList =
-        Object.values(
-          groupedFields
-        ).slice(
-          0,
-          20
-        );
+  const fieldTypes = useMemo(() => {
+    return [
+      ...new Set(
+        fields
+          .map((field) => field.FieldType)
+          .filter(Boolean)
+      ),
+    ].sort();
+  }, [fields]);
 
+  // ==========================================
+  // AVAILABILITY MAP
+  // ==========================================
+  const availabilityMap = useMemo(() => {
+    const map = new Map();
 
-      setFields(
-        fieldList
-      );
+    const items = toArray(availability);
 
-    }
-    catch (err) {
+    items.forEach((item) => {
+      const fieldID =
+        item.FieldID ?? item.fieldID ?? item.id;
 
-      console.error(
-        "Load fields error:",
-        err
-      );
+      if (fieldID !== undefined && fieldID !== null) {
+        map.set(String(fieldID), item);
+      }
+    });
 
+    return map;
+  }, [availability]);
 
-      setError(
-        "Không thể tải danh sách sân bóng."
-      );
+  // ==========================================
+  // FILTER FIELD LIST
+  // ==========================================
+  const filteredFields = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
 
-    }
-    finally {
+    return fields.filter((field) => {
+      const name = String(
+        field.FieldName || ""
+      ).toLowerCase();
 
-      setLoading(false);
+      const location = String(field.Location || "");
+      const type = String(field.FieldType || "");
 
-    }
+      const matchSearch =
+        !keyword || name.includes(keyword);
 
+      const matchLocation =
+        !locationFilter || location === locationFilter;
+
+      const matchType =
+        !typeFilter || type === typeFilter;
+
+      return matchSearch && matchLocation && matchType;
+    });
+  }, [fields, search, locationFilter, typeFilter]);
+
+  // ==========================================
+  // CLEAR FILTER
+  // ==========================================
+  const clearFilters = () => {
+    setSearch("");
+    setLocationFilter("");
+    setTypeFilter("");
   };
 
-
-  /*
-   * Search này đã có sẵn trong UI cũ.
-   * Ta giữ nguyên, không coi đây là
-   * chức năng mới của BE-03.
-   */
-
-  const filteredFields =
-    fields.filter(
-      (field) =>
-        field.name
-          .toLowerCase()
-          .includes(
-            keyword.toLowerCase()
-          )
-    );
-
-
+  // ==========================================
+  // RENDER
+  // ==========================================
   return (
     <>
       <Navbar />
 
-
       <main className="field-list-page">
+        {/* TITLE */}
+        <section className="field-list-heading">
+          <div>
+            <p className="field-list-eyebrow">
+              ĐẶT SÂN BÓNG
+            </p>
 
-        <section className="field-filter-section">
+            <h1>Danh sách sân</h1>
 
-          <div className="field-filter">
+            <p>
+              Tìm sân phù hợp, chọn ngày và kiểm tra
+              khung giờ còn trống trước khi đặt.
+            </p>
+          </div>
+        </section>
 
-            <div className="field-filter__group field-filter__name">
+        {/* FILTERS */}
+        <section className="field-filter-panel">
+          {/* SEARCH */}
+          <div
+            className="field-filter-control field-filter-search"
+          >
+            <label htmlFor="field-search">
+              Tìm theo tên sân
+            </label>
 
-              <label>
-                TÊN SÂN BÓNG
-              </label>
+            <input
+              id="field-search"
+              type="search"
+              value={search}
+              onChange={(event) =>
+                setSearch(event.target.value)
+              }
+              placeholder="Nhập tên sân..."
+            />
+          </div>
 
+          {/* LOCATION */}
+          <div className="field-filter-control">
+            <label htmlFor="field-location">
+              Khu vực
+            </label>
 
-              <div className="field-filter__input-wrapper">
-
-                <Search size={19} />
-
-
-                <input
-                  type="text"
-                  placeholder="Nhập tên sân (vd: Phú Thọ, Tân Bình...)"
-                  value={keyword}
-                  onChange={(e) =>
-                    setKeyword(
-                      e.target.value
-                    )
-                  }
-                />
-
-              </div>
-
-            </div>
-
-
-            <div className="field-filter__group">
-
-              <label>
-                KHU VỰC
-              </label>
-
-
-              <select>
-                <option>
-                  Tất cả quận huyện
-                </option>
-
-                <option>
-                  Bình Thạnh
-                </option>
-
-                <option>
-                  Tân Bình
-                </option>
-
-                <option>
-                  Quận 10
-                </option>
-
-                <option>
-                  Quận 11
-                </option>
-              </select>
-
-            </div>
-
-
-            <div className="field-filter__group">
-
-              <label>
-                LOẠI SÂN
-              </label>
-
-
-              <select>
-                <option>
-                  Sân 7 người
-                </option>
-
-                <option>
-                  Sân 5 người
-                </option>
-
-                <option>
-                  Sân 11 người
-                </option>
-              </select>
-
-            </div>
-
-
-            <button
-              className="field-filter__submit"
+            <select
+              id="field-location"
+              value={locationFilter}
+              onChange={(event) =>
+                setLocationFilter(event.target.value)
+              }
             >
+              <option value="">
+                Tất cả khu vực
+              </option>
 
-              <Search size={18} />
-
-              Tìm sân
-
-            </button>
-
+              {locations.map((location) => (
+                <option
+                  key={location}
+                  value={location}
+                >
+                  {location}
+                </option>
+              ))}
+            </select>
           </div>
 
+          {/* FIELD TYPE */}
+          <div className="field-filter-control">
+            <label htmlFor="field-type">
+              Loại sân
+            </label>
+
+            <select
+              id="field-type"
+              value={typeFilter}
+              onChange={(event) =>
+                setTypeFilter(event.target.value)
+              }
+            >
+              <option value="">
+                Tất cả loại sân
+              </option>
+
+              {fieldTypes.map((type) => (
+                <option key={type} value={type}>
+                  {type}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* BOOKING DATE */}
+          <div className="field-filter-control">
+            <label htmlFor="booking-date">
+              Ngày kiểm tra
+            </label>
+
+            <input
+              id="booking-date"
+              type="date"
+              min={localDateString()}
+              value={selectedDate}
+              onChange={(event) =>
+                setSelectedDate(event.target.value)
+              }
+            />
+          </div>
+
+          {/* RESET FILTERS */}
+          <button
+            type="button"
+            className="field-filter-reset"
+            onClick={clearFilters}
+          >
+            Xóa bộ lọc
+          </button>
         </section>
 
+        {/* AVAILABILITY SUMMARY */}
+        {selectedDate && (
+          <section
+            className="availability-summary"
+            aria-live="polite"
+          >
+            {availabilityLoading && (
+              <p>Đang kiểm tra lịch sân...</p>
+            )}
 
-        <section className="field-list-container">
+            {!availabilityLoading &&
+              availabilityError && (
+                <p className="availability-summary-error">
+                  {availabilityError}
+                </p>
+              )}
 
-          <div className="field-list__heading">
+            {!availabilityLoading &&
+              !availabilityError &&
+              availability && (
+                <p>
+                  Ngày{" "}
+                  <strong>
+                    {availability.Date || selectedDate}
+                  </strong>
+                  :{" "}
+                  <strong>
+                    {availability.AvailableFields ?? 0}
+                  </strong>{" "}
+                  sân còn ít nhất một khung giờ trống /{" "}
+                  {availability.TotalFields ?? fields.length}{" "}
+                  sân.
+                </p>
+              )}
+          </section>
+        )}
 
-            <div>
+        {/* LOADING */}
+        {loading && (
+          <div className="field-list-state">
+            <div className="field-loading-spinner" />
+            <p>Đang tải danh sách sân...</p>
+          </div>
+        )}
 
-              <h1>
-                DANH SÁCH SÂN BÓNG
-              </h1>
+        {/* ERROR */}
+        {!loading && error && (
+          <div className="field-list-state field-list-state-error">
+            {error}
+          </div>
+        )}
 
-
-              <p>
-                Tìm và đặt sân nhanh chóng,
-                tiện lợi, đầy đủ dịch vụ tiện
-                ích đi kèm
-              </p>
-
+        {/* EMPTY */}
+        {!loading &&
+          !error &&
+          filteredFields.length === 0 && (
+            <div className="field-list-state">
+              Không có sân phù hợp với điều kiện tìm kiếm.
             </div>
-
-
-            <span className="field-list__result">
-
-              Tìm thấy{" "}
-              {
-                filteredFields.length
-              }{" "}
-              kết quả
-
-            </span>
-
-          </div>
-
-
-          {loading && (
-
-            <p>
-              Đang tải danh sách sân...
-            </p>
-
           )}
 
+        {/* FIELD LIST */}
+        {!loading &&
+          !error &&
+          filteredFields.length > 0 && (
+            <section className="field-card-grid">
+              {filteredFields.map((field) => {
+                const fieldAvailability =
+                  availabilityMap.get(
+                    String(field.FieldID)
+                  );
 
-          {!loading && error && (
-
-            <p>
-              {error}
-            </p>
-
+                return (
+                  <FieldCard
+                    key={field.FieldID}
+                    id={field.FieldID}
+                    name={field.FieldName}
+                    address={field.Location}
+                    type={field.FieldType}
+                    status={
+                      fieldAvailability?.FieldStatus ??
+                      field.Status
+                    }
+                    slots={
+                      selectedDate
+                        ? fieldAvailability?.Slots || []
+                        : field.Prices || []
+                    }
+                    selectedDate={selectedDate}
+                    availabilityLoaded={
+                      Boolean(selectedDate) &&
+                      !availabilityLoading &&
+                      !availabilityError &&
+                      Boolean(fieldAvailability)
+                    }
+                    availabilityLoading={
+                      Boolean(selectedDate) &&
+                      availabilityLoading
+                    }
+                    availabilityError={
+                      selectedDate ? availabilityError : ""
+                    }
+                    hasAvailableSlot={
+                      fieldAvailability?.HasAvailableSlot ??
+                      false
+                    }
+                  />
+                );
+              })}
+            </section>
           )}
-
-
-          {
-            !loading &&
-            !error &&
-            filteredFields.length === 0 &&
-            (
-
-              <p>
-                Không có sân bóng nào.
-              </p>
-
-            )
-          }
-
-
-          {
-            !loading &&
-            !error &&
-            filteredFields.length > 0 &&
-            (
-
-              <div className="field-list__grid">
-
-                {
-                  filteredFields.map(
-                    (field) => (
-
-                      <FieldCard
-                        key={field.id}
-                        id={field.id}
-                        image={field.image}
-                        name={field.name}
-                        address={field.address}
-                        type={field.type}
-                        rating={field.rating}
-                        price={field.price}
-                      />
-
-                    )
-                  )
-                }
-
-              </div>
-
-            )
-          }
-
-        </section>
-
       </main>
-
     </>
   );
-}
-
+};
 
 export default FieldList;

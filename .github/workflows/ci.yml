@@ -52,7 +52,7 @@ jobs:
 
       - name: Check backend
         working-directory: backend
-        run: python -m py_compile test.py
+        run: python -m py_compile app.py
 
   docker:
     runs-on: ubuntu-latest
@@ -82,11 +82,24 @@ jobs:
         run: npm install -g newman openapi-to-postmanv2
 
       # 2. Khởi chạy hệ thống bằng Docker Compose
+      - name: Prepare CI environment
+        run: |
+          cat > .env <<'EOF'
+          DB_DRIVER=ODBC Driver 18 for SQL Server
+          DB_SERVER=football-sql,1433
+          DB_NAME=FootballBookingDB
+          DB_USER=ci_user
+          DB_PASSWORD=ci_dummy_password
+          DB_TRUST_SERVER_CERTIFICATE=yes
+          EOF
+
+          docker network create football-network || true
+
       - name: Start Services with Docker
         run: |
+          docker network create football-network || true
           docker compose up -d --build
           sleep 10
-
       # 3. Chuyển đổi backend/swagger.yaml sang Collection & Chạy Test
       - name: Convert Swagger to Postman Collection & Run Tests
         run: |
