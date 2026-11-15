@@ -28,6 +28,7 @@ from routes.cancellation import cancellation_bp
 from routes.review import review_bp
 from routes.admin_review import admin_review_bp
 from routes.admin_customer import admin_customer_bp
+from routes.admin_report import admin_report_bp
 
 # UC15 - Quản lý sân bóng
 from routes.field_management import field_management_bp
@@ -37,6 +38,7 @@ app = Flask(__name__)
 app.register_blueprint(review_bp, url_prefix="/api")
 app.register_blueprint(admin_review_bp, url_prefix="/api/admin")
 app.register_blueprint(admin_customer_bp, url_prefix="/api/admin")
+app.register_blueprint(admin_report_bp, url_prefix="/api/admin")
 app.register_blueprint(invoice_bp, url_prefix="/api")
 app.register_blueprint(admin_invoice_bp, url_prefix="/api")
 
