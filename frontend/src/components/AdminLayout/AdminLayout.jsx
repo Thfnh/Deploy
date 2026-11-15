@@ -267,7 +267,8 @@ function AdminLayout() {
                   Hóa đơn & thanh toán
                 </li>
 
-                <li>
+                <li className={isActive("/admin/reports") ? "active" : ""} onClick={() => navigate("/admin/reports")}
+                  role="link" tabIndex={0} onKeyDown={event => { if (event.key === "Enter") navigate("/admin/reports"); }}>
                   Thống kê & báo cáo
                 </li>
 

@@ -9,6 +9,34 @@ servers:
     description: "Local Server"
 
 paths:
+  /api/admin/reports/summary:
+    get:
+      tags: [UC16 - Reports]
+      summary: ADMIN ACTIVE đọc thống kê tiền thu, hoàn cọc, đặt sân và giao dịch
+      description: 'Khoảng ngày database-local, bao gồm cả ngày cuối, tối đa 366 ngày. Dòng tiền thuần không phải doanh thu dồn tích. Chỉ đọc; không cập nhật trạng thái nghiệp vụ. Xem docs/UC16-statistics-reports.md để đối chiếu công thức.'
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: from
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: 'YYYY-MM-DD; năm 1900–9998, không được sau to.'
+        - name: to
+          in: query
+          required: true
+          schema: { type: string, format: date }
+          description: 'Ngày cuối tính cả ngày; không truyền trùng tham số hoặc thêm tham số khác.'
+      responses:
+        '200':
+          description: 'Báo cáo; không có dữ liệu trả 0 và danh sách sân rỗng, dailyRevenue đủ ngày. Cache-Control no-store.'
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UC16Summary' }
+        '400': { description: INVALID_DATE_RANGE }
+        '401': { description: Thiếu hoặc sai JWT }
+        '403': { description: Chỉ ADMIN ACTIVE trong token và database được xem }
+        '503': { description: DB_UNAVAILABLE hoặc REPORT_UNAVAILABLE; không trả số liệu một phần }
+        '500': { description: REPORT_ERROR }
   /api/admin/customers:
     get:
       tags: [UC13 - Customers]
@@ -2050,6 +2078,66 @@ components:
       bearerFormat: JWT
 
   schemas:
+    UC16Summary:
+      type: object
+      required: [from, to, dayCount, currency, dateBasis, revenueBasis, utilizationBasis, revenue, grossRevenue, refundedAmount, bookingCount, bookingStatusCount, bookingBreakdown, invoiceCount, invoiceStatusCount, fieldUtilization, dailyRevenue]
+      properties:
+        from: { type: string, format: date }
+        to: { type: string, format: date }
+        dayCount: { type: integer, minimum: 1, maximum: 366 }
+        currency: { type: string, enum: [VND] }
+        dateBasis: { type: string, enum: [database-local] }
+        revenueBasis: { type: string, enum: [cash-receipts-minus-confirmed-refunds] }
+        utilizationBasis: { type: string, enum: [confirmed-completed-union-over-24h-per-day] }
+        grossRevenue: { type: number, minimum: 0, description: 'SUCCESS Amount>0 DEPOSIT/FINAL_PAYMENT/EXTRA theo COALESCE(PaymentDate,UpdatedAt,CreatedAt).' }
+        refundedAmount: { type: number, minimum: 0, description: 'BookingDepositRefunds.Amount theo ConfirmedAt.' }
+        revenue: { type: number, description: 'grossRevenue - refundedAmount; có thể âm.' }
+        bookingCount: { type: integer, minimum: 0, description: 'Chỉ COMPLETED với TotalAmount không null, không âm và khoản thu SUCCESS hợp lệ trừ hoàn cọc đủ TotalAmount; lọc theo BookingDate, xét toàn bộ lịch sử thu/hoàn.' }
+        bookingStatusCount:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        bookingBreakdown:
+          type: object
+          description: 'Cùng BookingDate và toàn bộ lịch sử thu/hoàn. Mỗi đơn thuộc đúng một nhóm cụ thể; cộng tất cả các nhóm bằng total. Ưu tiên đơn đã hủy trước phân loại thu tiền.'
+          required: [completedPaid, deposited, cancelled, unpaid, paidAwaitingCompletion, partiallyPaid, refunded, invalidAmount, invalidStatus, invalidBalance, total]
+          properties:
+            completedPaid: { type: integer, minimum: 0, description: 'Bằng bookingCount: COMPLETED và thu đủ tổng tiền.' }
+            deposited: { type: integer, minimum: 0, description: 'PENDING/CONFIRMED/COMPLETED, còn tiền cọc SUCCESS sau hoàn, NetPaid > 0 nhưng chưa đủ TotalAmount.' }
+            cancelled: { type: integer, minimum: 0, description: 'CANCELLED/CANCELED, bao gồm đơn đã hoàn cọc.' }
+            unpaid: { type: integer, minimum: 0, description: 'Chưa thu tiền, không có khoản hoàn; tổng tiền dương.' }
+            paidAwaitingCompletion: { type: integer, minimum: 0, description: 'Thu đủ nhưng chưa COMPLETED, bao gồm đơn miễn phí được xác nhận.' }
+            partiallyPaid: { type: integer, minimum: 0, description: 'Thu một phần nhưng không còn khoản cọc hợp lệ.' }
+            refunded: { type: integer, minimum: 0, description: 'Chưa hủy nhưng đã hoàn hết khoản thu, NetPaid=0.' }
+            invalidAmount: { type: integer, minimum: 0, description: 'TotalAmount null hoặc âm.' }
+            invalidStatus: { type: integer, minimum: 0, description: 'Status không thuộc trạng thái booking hỗ trợ.' }
+            invalidBalance: { type: integer, minimum: 0, description: 'Số hoàn vượt khoản thu hợp lệ.' }
+            total: { type: integer, minimum: 0, description: 'Tổng tất cả nhóm, không đếm trùng.' }
+        invoiceCount: { type: integer, minimum: 0, description: 'Hóa đơn phát hành theo CreatedDate, không cộng tiền lần nữa.' }
+        invoiceStatusCount:
+          type: object
+          additionalProperties: { type: integer, minimum: 0 }
+        fieldUtilization:
+          type: array
+          items:
+            type: object
+            required: [fieldId, fieldName, isArchived, bookedHours, capacityHours, utilizationPercent]
+            properties:
+              fieldId: { type: integer }
+              fieldName: { type: string }
+              isArchived: { type: boolean }
+              bookedHours: { type: number, minimum: 0, description: 'Hợp các khoảng CONFIRMED/COMPLETED cùng sân/ngày, không cộng trùng giờ.' }
+              capacityHours: { type: integer, description: 'dayCount x 24; chưa trừ đóng cửa/bảo trì.' }
+              utilizationPercent: { type: number, minimum: 0, maximum: 100 }
+        dailyRevenue:
+          type: array
+          items:
+            type: object
+            required: [date, grossRevenue, refundedAmount, revenue]
+            properties:
+              date: { type: string, format: date }
+              grossRevenue: { type: number }
+              refundedAmount: { type: number }
+              revenue: { type: number }
     UC12Invoice:
       type: object
       properties:
