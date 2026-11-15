@@ -240,7 +240,7 @@ const FieldList = () => {
   const [
     selectedDate,
     setSelectedDate,
-  ] = useState("");
+  ] = useState(localDateString);
 
 
   const [
@@ -329,16 +329,10 @@ const FieldList = () => {
   useEffect(() => {
 
     let cancelled = false;
+    let refreshTimeout;
 
 
     if (!selectedDate) {
-
-      setAvailability(null);
-
-      setAvailabilityError("");
-
-      setAvailabilityLoading(false);
-
       return undefined;
     }
 
@@ -362,7 +356,7 @@ const FieldList = () => {
 
         if (!cancelled) {
 
-          setAvailability(data);
+          setAvailability({ date: selectedDate, data });
         }
 
       } catch (err) {
@@ -384,22 +378,19 @@ const FieldList = () => {
           if (showLoading) {
             setAvailabilityLoading(false);
           }
+          refreshTimeout = window.setTimeout(() => loadAvailability(false), 30_000);
         }
       }
     };
 
 
     loadAvailability();
-    const refreshInterval = window.setInterval(
-      () => loadAvailability(false),
-      30_000
-    );
 
 
     return () => {
 
       cancelled = true;
-      window.clearInterval(refreshInterval);
+      window.clearTimeout(refreshTimeout);
     };
 
   }, [selectedDate]);
@@ -463,7 +454,7 @@ const FieldList = () => {
 
         const items =
           toArray(
-            availability
+            availability?.date === selectedDate ? availability.data : null
           );
 
 
@@ -493,7 +484,7 @@ const FieldList = () => {
         return map;
 
       },
-      [availability]
+      [availability, selectedDate]
     );
 
 
@@ -573,6 +564,14 @@ const FieldList = () => {
   // CLEAR FILTER
   // =========================================================
 
+  const changeDate = (value) => {
+    if (value === selectedDate) return;
+    setSelectedDate(value);
+    setAvailability(null);
+    setAvailabilityError("");
+    setAvailabilityLoading(Boolean(value));
+  };
+
   const clearFilters = () => {
 
     setSearch("");
@@ -580,6 +579,8 @@ const FieldList = () => {
     setLocationFilter("");
 
     setTypeFilter("");
+
+    changeDate(localDateString());
   };
 
 
@@ -781,7 +782,7 @@ const FieldList = () => {
 
               onChange={
                 (event) =>
-                  setSelectedDate(
+                  changeDate(
                     event.target.value
                   )
               }
@@ -850,7 +851,7 @@ const FieldList = () => {
               {
                 !availabilityLoading &&
                 !availabilityError &&
-                availability && (
+                availability?.date === selectedDate && (
 
                   <p>
 
@@ -858,7 +859,7 @@ const FieldList = () => {
 
                     <strong>
                       {
-                        availability.Date ||
+                        availability.data?.Date ||
                         selectedDate
                       }
                     </strong>
@@ -867,7 +868,7 @@ const FieldList = () => {
 
                     <strong>
                       {
-                        availability
+                        availability.data
                           .AvailableFields ??
                         0
                       }
@@ -878,7 +879,7 @@ const FieldList = () => {
                     khung giờ trống /{" "}
 
                     {
-                      availability
+                      availability.data
                         .TotalFields ??
                       fields.length
                     }
