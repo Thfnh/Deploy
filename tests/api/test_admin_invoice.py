@@ -83,7 +83,7 @@ class AdminInvoiceTests(unittest.TestCase):
         self.assertIn("P.Status='SUCCESS'", query)
         self.assertIn("I.CreatedDate < ?", query)
         self.assertIn("%A~%~_%", args)
-        self.assertIn(date(2026, 11, 10), args)
+        self.assertIn(datetime(2026, 11, 9, 17), args)
         self.assertEqual(args[-2:], [10, 11])
         self.conn.commit.assert_not_called()
         self.assert_no_legacy_writes()

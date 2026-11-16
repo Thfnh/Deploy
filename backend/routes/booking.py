@@ -1,5 +1,6 @@
+from services.business_time import database_iso
 
-from datetime import date, datetime
+from datetime import datetime
 
 from flask import Blueprint, jsonify, request
 
@@ -8,6 +9,8 @@ from services.availability_service import (
     booking_is_cancelled,
     expire_pending_bookings,
     is_time_overlap,
+    slot_has_started,
+    vietnam_now,
 )
 from services.jwt_service import (
     current_user_id,
@@ -136,11 +139,19 @@ def row_to_booking(row):
         "PaidAmount": float(
             getattr(row, "PaidAmount", 0) or 0
         ),
-        "RemainingAmount": max(
+        "RemainingAmount": 0 if str(row.Status).upper()=="CANCELLED" else max(
             float(row.TotalAmount or 0)
-            - float(getattr(row, "PaidAmount", 0) or 0),
+            - float(getattr(row, "TotalPaidAmount", getattr(row, "PaidAmount", 0)) or 0)
+            + float(getattr(row, "RefundedAmount", 0) or 0),
             0,
         ),
+        "CancellationRequest": ({
+            "status": row.CancellationRequestStatus,
+            "reviewNote": getattr(row, "CancellationReviewNote", None),
+            "reviewedAt": database_iso(getattr(row, "CancellationReviewedAt", None)),
+        } if getattr(row, "CancellationRequestStatus", None) else None),
+        "TotalPaidAmount": float(getattr(row, "TotalPaidAmount", 0) or 0),
+        "AttendanceState": getattr(row, "AttendanceState", None),
         "Status": str(
             row.Status or ""
         ).strip().upper(),
@@ -234,9 +245,24 @@ def get_booking_row(
             U.Phone,
             U.Email,
             PaymentTotals.PaidAmount,
-            (SELECT R.Amount FROM dbo.BookingDepositRefunds R WHERE R.BookingID = B.BookingID) AS RefundedAmount
+            (SELECT COALESCE(SUM(P.Amount),0) FROM dbo.Payments P
+             WHERE P.BookingID=B.BookingID AND P.Status='SUCCESS' AND P.Amount>0
+             AND P.PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA')) AS TotalPaidAmount,
+            (SELECT R.Amount FROM dbo.BookingDepositRefunds R WHERE R.BookingID = B.BookingID) AS RefundedAmount,
+            CancellationRequest.Status AS CancellationRequestStatus,
+            CancellationRequest.ReviewNote AS CancellationReviewNote,
+            CancellationRequest.ReviewedAt AS CancellationReviewedAt,
+            Attendance.EventType AS AttendanceState
 
         FROM Bookings B
+        OUTER APPLY (
+                SELECT TOP (1) CR.Status, CR.ReviewNote, CR.ReviewedAt
+                FROM dbo.BookingCancellationRequests CR
+                WHERE CR.BookingID = B.BookingID
+                ORDER BY CR.RequestedAt DESC, CR.RequestID DESC
+            ) CancellationRequest
+        OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                     WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
 
         INNER JOIN FootballFields F
             ON B.FieldID = F.FieldID
@@ -373,7 +399,7 @@ def create_booking():
                     "Ngày đặt không đúng định dạng YYYY-MM-DD"
             }), 400
 
-        if booking_date < date.today():
+        if booking_date < vietnam_now().date():
 
             return jsonify({
                 "message":
@@ -415,6 +441,9 @@ def create_booking():
         # ====================================================
         # DATABASE
         # ====================================================
+
+        if slot_has_started(booking_date, start_time):
+            return jsonify({"code": "PAST_TIME", "message": "Khung giờ đã qua, không thể đặt sân. Vui lòng chọn giờ khác."}), 400
 
         conn = get_connection()
 
@@ -654,6 +683,10 @@ def create_booking():
         #
         # Booking mới luôn PENDING.
         # ====================================================
+
+        if slot_has_started(booking_date, start_time):
+            conn.rollback()
+            return jsonify({"code": "PAST_TIME", "message": "Khung giờ đã qua, không thể đặt sân. Vui lòng chọn giờ khác."}), 400
 
         cursor.execute(
             """
@@ -996,9 +1029,24 @@ def get_all_bookings():
                 (SELECT COALESCE(SUM(P.Amount), 0) FROM Payments P
                  WHERE P.BookingID = B.BookingID AND P.PaymentType = 'DEPOSIT'
                  AND UPPER(LTRIM(RTRIM(P.Status))) = 'SUCCESS') AS PaidAmount,
-                (SELECT R.Amount FROM dbo.BookingDepositRefunds R WHERE R.BookingID = B.BookingID) AS RefundedAmount
+                (SELECT COALESCE(SUM(P.Amount),0) FROM dbo.Payments P
+             WHERE P.BookingID=B.BookingID AND P.Status='SUCCESS' AND P.Amount>0
+             AND P.PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA')) AS TotalPaidAmount,
+            (SELECT R.Amount FROM dbo.BookingDepositRefunds R WHERE R.BookingID = B.BookingID) AS RefundedAmount,
+            CancellationRequest.Status AS CancellationRequestStatus,
+            CancellationRequest.ReviewNote AS CancellationReviewNote,
+            CancellationRequest.ReviewedAt AS CancellationReviewedAt,
+            Attendance.EventType AS AttendanceState
 
             FROM Bookings B
+            OUTER APPLY (
+                SELECT TOP (1) CR.Status, CR.ReviewNote, CR.ReviewedAt
+                FROM dbo.BookingCancellationRequests CR
+                WHERE CR.BookingID = B.BookingID
+                ORDER BY CR.RequestedAt DESC, CR.RequestID DESC
+            ) CancellationRequest
+        OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                     WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
 
             INNER JOIN FootballFields F
                 ON B.FieldID = F.FieldID
@@ -1385,6 +1433,15 @@ def update_booking_status(
         # ====================================================
         # UPDATE
         # ====================================================
+
+        if new_status == "COMPLETED":
+            from services.booking_operations import require_arrival_before_finish
+            from services.payment_service import PaymentError
+            try:
+                require_arrival_before_finish(cursor, booking_id)
+            except PaymentError as error:
+                conn.rollback()
+                return jsonify({"message":error.message,"code":error.code}),error.status_code
 
         cursor.execute(
             """

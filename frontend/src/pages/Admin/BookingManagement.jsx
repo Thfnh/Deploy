@@ -1,10 +1,15 @@
+import BookingPaymentBadge from "../../components/BookingPaymentBadge/BookingPaymentBadge";
+import BookingOperationsPanel from "../../components/BookingOperationsPanel/BookingOperationsPanel";
+import { formatBusinessTime } from "../../utils/businessClock";
 
 import { useEffect, useMemo, useState } from "react";
-import { Link, useOutletContext } from "react-router-dom";
+import { Link, useOutletContext, useLocation } from "react-router-dom";
 import { Check, Eye, RefreshCw, X } from "lucide-react";
 
 import SettlementPanel from "../../components/SettlementPanel/SettlementPanel";
-import { confirmDepositRefund, downloadRefundEvidence, getCancellationInfo, getAdminCancellationRequests, decideCancellation, adminCancelBooking } from "../../services/cancellation_service";
+import useBookingClock from "../../hooks/useBookingClock";
+import { bookingNeedsCollection, bookingDisplayStatus, bookingBalance } from "../../utils/bookingStatus";
+import { confirmDepositRefund, downloadRefundEvidence, getCancellationInfo, decideCancellation, adminCancelBooking } from "../../services/cancellation_service";
 
 import {
   getAllBookings,
@@ -16,6 +21,10 @@ import "./BookingManagement.css";
 
 
 const LABELS = {
+  IN_PROGRESS: ["Đang đá", "booking-status-progress"],
+  AWAITING_ARRIVAL: ["Chờ khách đến", "booking-status-ended"],
+  NO_SHOW: ["Khách không đến", "booking-status-ended"],
+  ENDED: ["Đã kết thúc / hết giờ", "booking-status-ended"],
   PENDING: [
     "Chờ xác nhận",
     "booking-status-pending"
@@ -42,21 +51,20 @@ const money = (value) =>
   `${Number(value || 0).toLocaleString("vi-VN")}đ`;
 
 
-function StatusBadge({ status }) {
-  const [label, css] =
-    LABELS[String(status || "").toUpperCase()] ||
-    [status || "Không xác định", "booking-status-default"];
-
-  return (
-    <span className={`booking-status-badge ${css}`}>
-      {label}
-    </span>
-  );
+function StatusBadge({ status, booking, now }) {
+  const lifecycle = booking ? bookingDisplayStatus(booking, now) : status;
+  const [label, css] = LABELS[lifecycle] || [lifecycle || "Không xác định", "booking-status-default"];
+  return <div className="booking-status-pair">
+    <span className={`booking-status-badge ${css}`}>{label}</span>
+    {booking && <BookingPaymentBadge booking={booking} />}
+  </div>;
 }
 
 
 export default function BookingManagement() {
-  const { user } = useOutletContext();
+  const now = useBookingClock();
+  const { user, cancellationInbox } = useOutletContext();
+  const location = useLocation();
 
   const isAdmin =
     String(user?.Role || "").toUpperCase() === "ADMIN";
@@ -77,8 +85,8 @@ export default function BookingManagement() {
   const [refundReference, setRefundReference] = useState("");
   const [refundFile, setRefundFile] = useState(null);
   const [refundError, setRefundError] = useState("");
-  const [cancelRequests, setCancelRequests] = useState([]);
-  const [cancelRequestsError, setCancelRequestsError] = useState("");
+  const cancelRequests = cancellationInbox.requests;
+  const cancelRequestsError = cancellationInbox.error;
   const [reviewingId, setReviewingId] = useState(null);
   const [reviewNote, setReviewNote] = useState({});
 
@@ -116,10 +124,11 @@ export default function BookingManagement() {
     if (!user?.UserID) return undefined;
 
     let active = true;
+    let timer;
 
     setLoading(true);
 
-    getAllBookings(user.UserID)
+    const poll = () => getAllBookings(user.UserID)
       .then((result) => {
         if (active) {
           setBookings(
@@ -137,11 +146,13 @@ export default function BookingManagement() {
         }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) { setLoading(false); timer = window.setTimeout(poll, 10_000); }
       });
+    poll();
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, [user?.UserID]);
 
@@ -169,47 +180,41 @@ export default function BookingManagement() {
 
       return (
         (!word || fullText.includes(word)) &&
-        (!filterStatus || row.Status === filterStatus)
+        (!filterStatus || bookingDisplayStatus(row, now) === filterStatus)
       );
     });
-  }, [bookings, search, filterStatus]);
+  }, [bookings, search, filterStatus, now]);
 
 
   const stats = useMemo(() => ({
     total: bookings.length,
 
     pending: bookings.filter(
-      (b) => b.Status === "PENDING"
+      (b) => bookingDisplayStatus(b, now) === "PENDING"
     ).length,
 
     confirmed: bookings.filter(
-      (b) => b.Status === "CONFIRMED"
+      (b) => bookingDisplayStatus(b, now) === "CONFIRMED"
     ).length,
 
     completed: bookings.filter(
-      (b) => b.Status === "COMPLETED"
+      (b) => bookingDisplayStatus(b, now) === "COMPLETED"
     ).length,
 
-  }), [bookings]);
+    inProgress: bookings.filter(b => bookingDisplayStatus(b, now) === "IN_PROGRESS").length,
+    ended: bookings.filter(b => bookingDisplayStatus(b, now) === "ENDED").length,
+  }), [bookings, now]);
 
 
   // ======================================================
   // UC07 - LOAD ADMIN CANCELLATION REQUESTS
   // ======================================================
-  const loadCancelRequests = async () => {
-    if (!isAdmin) return;
-    try {
-      setCancelRequestsError("");
-      const response = await getAdminCancellationRequests("PENDING_REVIEW");
-      setCancelRequests(response.requests || []);
-    } catch (err) {
-      setCancelRequestsError(err.message || "Không tải được yêu cầu hủy");
-    }
-  };
-
+  const loadCancelRequests = cancellationInbox.refresh;
   useEffect(() => {
-    if (isAdmin) loadCancelRequests();
-  }, [isAdmin, user?.UserID]);
+    if (location.hash === "#cancellation-requests") {
+      document.getElementById("cancellation-requests")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [location.hash]);
 
   const handleReview = async (item, decision) => {
     if (!isAdmin || reviewingId) return;
@@ -218,7 +223,10 @@ export default function BookingManagement() {
       alert("Vui lòng nhập lý do từ chối");
       return;
     }
-    if (!window.confirm(`${decision === "APPROVED" ? "Duyệt" : "Từ chối"} yêu cầu hủy booking #${item.bookingId}?`)) return;
+    const confirmation = decision === "APPROVED"
+      ? `Cho phép hủy đơn #${item.bookingId}? Đơn sẽ chuyển sang Đã hủy và sân được mở lại để đặt. Ghi chú không thay đổi quyết định này.`
+      : `Không cho phép hủy đơn #${item.bookingId}? Đơn vẫn giữ nguyên, khách không thể gửi lại yêu cầu hủy.`;
+    if (!window.confirm(confirmation)) return;
     setReviewingId(item.requestId);
     try {
       await decideCancellation(item.requestId, decision, note);
@@ -294,7 +302,7 @@ export default function BookingManagement() {
 
   const changeStatus = async (booking, nextStatus) => {
     const label =
-      LABELS[nextStatus]?.[0] || nextStatus;
+      nextStatus === "COMPLETED" ? "Đã kết thúc buổi đá" : LABELS[nextStatus]?.[0] || nextStatus;
 
     const accepted = window.confirm(
       `Chuyển booking #${booking.BookingID} sang "${label}"?`
@@ -357,7 +365,7 @@ export default function BookingManagement() {
     if (!isAdmin || updatingId !== null) return;
     if (!refundReference.trim() || !refundFile) { setRefundError("Nhập mã giao dịch và chọn biên lai chuyển khoản."); return; }
     if (refundFile.size > 2 * 1024 * 1024) { setRefundError("Biên lai tối đa 2 MB."); return; }
-    if (!window.confirm("Bạn đã hoàn " + money(booking.PaidAmount) + " tiền cọc cho đơn #" + booking.BookingID + "?")) return;
+    if (!window.confirm("Bạn đã hoàn " + money(cancelHistory?.refundableAmount ?? bookingBalance(booking).netPaid) + " tiền cho đơn #" + booking.BookingID + "?")) return;
     setUpdatingId(booking.BookingID);
     setRefundError("");
     try {
@@ -367,7 +375,7 @@ export default function BookingManagement() {
         setSelectedBooking(await getBookingDetail(booking.BookingID));
         setCancelHistory(await getCancellationInfo(booking.BookingID));
       }
-    } catch (err) { setRefundError(err.message || "Không thể xác nhận hoàn cọc"); }
+    } catch (err) { setRefundError(err.message || "Không thể xác nhận hoàn tiền"); }
     finally { setUpdatingId(null); }
   };
 
@@ -380,26 +388,15 @@ export default function BookingManagement() {
     }
   };
 
-  const actions = (booking) => {
+  const actions = (booking, inDetail = false) => {
     const busy =
       updatingId === booking.BookingID;
 
+    if (!inDetail) return <button type="button" className="booking-action-btn booking-action-detail"
+      disabled={busy || detailLoading} onClick={() => viewBooking(booking.BookingID)}>Chi tiết</button>;
+
     return (
       <div className="booking-actions">
-        {isAdmin && booking.Status === "CANCELLED" && Number(booking.PaidAmount) > 0 && !Number(booking.RefundedAmount) && (
-          <button type="button" className="booking-action-btn booking-action-confirm"
-            onClick={() => viewBooking(booking.BookingID)} disabled={busy || detailLoading}>Hoàn cọc</button>
-        )}
-
-        <button
-          type="button"
-          className="booking-action-btn booking-action-detail"
-          disabled={busy || detailLoading}
-          onClick={() => viewBooking(booking.BookingID)}
-        >
-          Chi tiết
-        </button>
-
 
         {booking.Status === "PENDING" && (
           <>
@@ -428,19 +425,8 @@ export default function BookingManagement() {
         )}
 
 
-        {booking.Status === "CONFIRMED" && (
+        {booking.Status === "CONFIRMED" && now < Date.parse(`${booking.BookingDate}T${booking.StartTime?.slice(0,5)}:00+07:00`) && (
           <>
-            <button
-              type="button"
-              className="booking-action-btn booking-action-complete"
-              disabled={busy}
-              onClick={() =>
-                changeStatus(booking, "COMPLETED")
-              }
-            >
-              Hoàn thành
-            </button>
-
             <button
               type="button"
               className="booking-action-btn booking-action-cancel"
@@ -504,11 +490,11 @@ export default function BookingManagement() {
     ],
     [
       "Đã thu",
-      money(selectedBooking.PaidAmount)
+      money(bookingBalance(selectedBooking).netPaid)
     ],
     [
       "Còn lại",
-      money(selectedBooking.RemainingAmount)
+      money(bookingBalance(selectedBooking).remaining)
     ]
   ] : [];
 
@@ -534,11 +520,15 @@ export default function BookingManagement() {
 
       {/* STATISTICS */}
 
-      <div className="cards">
+      <div className="cards booking-lifecycle-stats">
         {[
           ["Tổng số đơn", stats.total],
           ["Chờ xác nhận", stats.pending],
           ["Đã xác nhận", stats.confirmed],
+          ["Đang đá", stats.inProgress],
+          ["Đã hết giờ / kết thúc", stats.ended],
+          ["Khách không đến", bookings.filter(b => bookingDisplayStatus(b, now) === "NO_SHOW").length],
+          ["Đã hủy", bookings.filter(b => bookingDisplayStatus(b, now) === "CANCELLED").length],
           ["Hoàn thành", stats.completed]
         ].map(([title, count]) => (
           <div className="card" key={title}>
@@ -583,7 +573,7 @@ export default function BookingManagement() {
 
       {/* UC07 - Danh sách yêu cầu hủy chờ ADMIN duyệt */}
       {isAdmin && (
-        <section className="uc07-admin-requests" aria-labelledby="cancellation-requests-title">
+        <section id="cancellation-requests" className="uc07-admin-requests" aria-labelledby="cancellation-requests-title">
           <div className="cancellation-requests-heading">
             <h2 id="cancellation-requests-title">
               Yêu cầu hủy chờ duyệt
@@ -621,12 +611,12 @@ export default function BookingManagement() {
                   <div className="cancellation-request-reason">
                     <span className="cancellation-request-label">Lý do hủy</span>
                     <p>{item.reason || "Không cung cấp"}</p>
-                    <p className="cancellation-request-time">Gửi lúc: <time dateTime={item.requestedAt}>{item.requestedAt?.replace("T", " ")}</time></p>
+                    <p className="cancellation-request-time">Gửi lúc: <time dateTime={item.requestedAt}>{formatBusinessTime(item.requestedAt)}</time></p>
                   </div>
                   <div className="cancellation-request-deposit">
                     <span className="cancellation-request-label">Tiền cọc đã thanh toán</span>
                     <strong>{money(item.depositPaid)}</strong>
-                    <p>Hoàn cọc được xử lý sau khi duyệt hủy.</p>
+                    <p>Hoàn tiền được xử lý sau khi duyệt hủy.</p>
                   </div>
                 </div>
 
@@ -641,11 +631,11 @@ export default function BookingManagement() {
                   <div className="cancellation-request-actions">
                     <button type="button" className="cancellation-btn cancellation-btn-reject" disabled={reviewingId !== null}
                       onClick={() => handleReview(item,"REJECTED")}>
-                      <X size={16} aria-hidden="true" /> Từ chối
+                      <X size={16} aria-hidden="true" /> Không cho phép hủy
                     </button>
                     <button type="button" className="cancellation-btn cancellation-btn-approve" disabled={reviewingId !== null}
                       onClick={() => handleReview(item,"APPROVED")}>
-                      <Check size={16} aria-hidden="true" /> Duyệt hủy
+                      <Check size={16} aria-hidden="true" /> Cho phép hủy
                     </button>
                   </div>
                 </div>
@@ -690,7 +680,7 @@ export default function BookingManagement() {
 
             ) : (
               filtered.map((b) => (
-                <tr key={b.BookingID}>
+                <tr key={b.BookingID} className={bookingNeedsCollection(b, now) ? "booking-row-unpaid" : ""}>
 
                   <td>
                     <strong>#{b.BookingID}</strong>
@@ -724,7 +714,7 @@ export default function BookingManagement() {
                   </td>
 
                   <td>
-                    <StatusBadge status={b.Status} />
+                    <StatusBadge status={b.Status} cancellation={b.CancellationRequest} booking={b} now={now} />
                   </td>
 
                   <td>{actions(b)}</td>
@@ -757,6 +747,10 @@ export default function BookingManagement() {
 
               <StatusBadge
                 status={selectedBooking.Status}
+                cancellation={selectedBooking.CancellationRequest}
+                booking={selectedBooking}
+                now={now}
+                showReason
               />
             </div>
 
@@ -772,6 +766,17 @@ export default function BookingManagement() {
 
 
             {/* UC07 - Lịch sử hủy, đọc từ SQL Server thông qua API */}
+            {isAdmin && cancelHistory?.latestRequest && (
+              <section className="uc07-admin-request-history">
+                <h3>Lịch sử yêu cầu hủy</h3>
+                <p><strong>Kết quả:</strong> {{ REJECTED: "Chủ sân đã từ chối hủy", APPROVED: "Chủ sân đã chấp nhận hủy", PENDING_REVIEW: "Đang chờ chủ sân duyệt" }[cancelHistory.latestRequest.status] || "Đang cập nhật"}</p>
+                <p><strong>Lý do khách yêu cầu hủy:</strong> {cancelHistory.latestRequest.reason || "Không cung cấp"}</p>
+                {cancelHistory.latestRequest.requestedAt && <p><strong>Thời gian yêu cầu:</strong> {formatBusinessTime(cancelHistory.latestRequest.requestedAt)}</p>}
+                {cancelHistory.latestRequest.reviewNote && <p><strong>Phản hồi chủ sân:</strong> {cancelHistory.latestRequest.reviewNote}</p>}
+                {cancelHistory.latestRequest.reviewedAt && <p><strong>Thời gian xử lý:</strong> {formatBusinessTime(cancelHistory.latestRequest.reviewedAt)}</p>}
+                {cancelHistory.latestRequest.status === "REJECTED" && <p>Yêu cầu hủy bị từ chối; đơn tiếp tục được sử dụng và thanh toán bình thường. Lịch sử này được giữ lại sau khi đơn hoàn thành.</p>}
+              </section>
+            )}
             {isAdmin && selectedBooking.Status === "CANCELLED" && (
               <section className="uc07-admin-history" style={{padding:16,marginTop:16,border:"1px solid #fecaca",borderRadius:10}}>
                 <h3>UC07 – Thông tin hủy booking</h3>
@@ -782,16 +787,16 @@ export default function BookingManagement() {
                   {cancelHistory.latestRequest && <p><strong>Người yêu cầu:</strong> User #{cancelHistory.latestRequest.requestedByUserId}</p>}
                   <p><strong>Thời gian:</strong> {cancelHistory.cancellation.canceledAt}</p>
                   <p><strong>Tiền cọc:</strong> {money(cancelHistory.depositPaid)}</p>
-                  <p><strong>Xử lý tiền cọc:</strong> {cancelHistory.refundStatus === "REFUNDED" ? "Đã hoàn tiền cọc" : cancelHistory.refundStatus === "NOT_REQUIRED" ? "Không cần hoàn cọc" : "Chờ hoàn cọc"}</p>
+                  <p><strong>Xử lý tiền cọc:</strong> {cancelHistory.refundStatus === "REFUNDED" ? "Đã hoàn tiền" : cancelHistory.refundStatus === "NOT_REQUIRED" ? "Không cần hoàn tiền" : "Chờ hoàn tiền"}</p>
                   <p>{cancelHistory.refundNote}</p>
                 </> : <p>Chưa có bản ghi BookingCancellations cho booking này.</p>}
               </section>
             )}
 
-            {isAdmin && (cancelHistory?.latestRequest?.refundAccount ||
-              (selectedBooking.Status === "CANCELLED" && Number(selectedBooking.PaidAmount) > 0)) && (
+            {isAdmin && (selectedBooking.AttendanceState !== "NO_SHOW" || Number(cancelHistory?.refundableAmount)>0) && ((cancelHistory?.latestRequest?.status === "APPROVED" && cancelHistory.latestRequest.refundAccount) ||
+              (selectedBooking.Status === "CANCELLED" && Number(selectedBooking.TotalPaidAmount) > 0)) && (
               <section className="booking-refund-details">
-                <h3>Chuyển khoản hoàn tiền cọc</h3>
+                <h3>Chuyển khoản hoàn tiền</h3>
                 {detailLoading && <p>Đang tải thông tin nhận tiền...</p>}
                 {cancelHistoryError && <p role="alert">{cancelHistoryError}</p>}
                 {cancelHistory?.latestRequest?.refundAccount ? (
@@ -801,19 +806,19 @@ export default function BookingManagement() {
                       <button type="button" onClick={() => copyTransferValue(cancelHistory.latestRequest.refundAccount.accountNumber, "số tài khoản")}>Sao chép</button>
                     </dd></div>
                     <div><dt>Chủ tài khoản</dt><dd>{cancelHistory.latestRequest.refundAccount.accountHolder}</dd></div>
-                    <div><dt>Số tiền hoàn cọc</dt><dd>{money(selectedBooking.RefundedAmount || selectedBooking.PaidAmount)}</dd></div>
+                    <div><dt>Số tiền cần hoàn</dt><dd>{money(selectedBooking.RefundedAmount || cancelHistory?.refundableAmount || selectedBooking.TotalPaidAmount)}</dd></div>
                     <div><dt>Nội dung chuyển khoản</dt><dd>HOAN COC {selectedBooking.BookingID}
                       <button type="button" onClick={() => copyTransferValue(`HOAN COC ${selectedBooking.BookingID}`, "nội dung chuyển khoản")}>Sao chép</button>
                     </dd></div>
                   </dl>
-                ) : !detailLoading && !cancelHistoryError && <p>Khách chưa cung cấp tài khoản nhận hoàn cọc. Vui lòng liên hệ khách để lấy thông tin chuyển khoản.</p>}
+                ) : !detailLoading && !cancelHistoryError && <p>Khách chưa cung cấp tài khoản nhận hoàn tiền. Vui lòng liên hệ khách để lấy thông tin chuyển khoản.</p>}
                 {copyNotice && <p role="status">{copyNotice}</p>}
                 {Number(selectedBooking.RefundedAmount) > 0 ? (
                   <div>
                     <p className="deposit-refunded" role="status">Đã hoàn {money(selectedBooking.RefundedAmount)} tiền cọc. Khách có thể xem thông báo trong đơn đặt sân.</p>
                     {cancelHistory?.refundTransactionReference && <p>Mã giao dịch: {cancelHistory.refundTransactionReference}</p>}
                     {cancelHistory?.hasRefundEvidence && <button type="button" className="booking-action-btn booking-action-detail"
-                      onClick={() => downloadRefundEvidence(selectedBooking.BookingID).catch(err => setRefundError(err.message))}>Tải biên lai hoàn cọc</button>}
+                      onClick={() => downloadRefundEvidence(selectedBooking.BookingID).catch(err => setRefundError(err.message))}>Tải biên lai hoàn tiền</button>}
                     {refundError && <p role="alert" className="booking-refund-error">{refundError}</p>}
                   </div>
                 ) : selectedBooking.Status === "CANCELLED" ? (
@@ -828,18 +833,22 @@ export default function BookingManagement() {
                     {refundError && <p role="alert" className="booking-refund-error">{refundError}</p>}
                     <button type="submit" className="booking-action-btn booking-action-confirm"
                       disabled={updatingId !== null || detailLoading || Boolean(cancelHistoryError)}>
-                      {updatingId === selectedBooking.BookingID ? "Đang xác nhận..." : "Đã hoàn tiền cọc"}
+                      {updatingId === selectedBooking.BookingID ? "Đang xác nhận..." : "Xác nhận đã hoàn tiền"}
                     </button>
                   </form>
-                ) : <p>Duyệt yêu cầu hủy trước khi hoàn tiền cọc.</p>}
+                ) : <p>Duyệt yêu cầu hủy trước khi hoàn tiền.</p>}
               </section>
             )}
 
             {/* UC09: Chỉ ADMIN được xác nhận */}
+            {isAdmin && <BookingOperationsPanel booking={selectedBooking} onChanged={async () => { await loadBookings(); await viewBooking(selectedBooking.BookingID); cancellationInbox.refresh(); }} />}
 
             {isAdmin && (
               <>
+              <div className="booking-detail-toolbar">
+              {actions(selectedBooking, true)}
               <Link className="ui-button ui-button-secondary" to={`/admin/bookings/${selectedBooking.BookingID}/invoice`}>Xem hóa đơn</Link>
+              </div>
               <SettlementPanel
                 bookingId={selectedBooking.BookingID}
                 mode="admin"

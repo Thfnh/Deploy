@@ -13,7 +13,7 @@ from app import app
 from database import get_connection
 from services.jwt_service import create_access_token
 
-TABLES = ("BookingDepositRefunds", "Bookings", "Payments", "Invoices", "Users")
+TABLES = ("BookingDepositRefunds", "BookingOperationEvents", "Bookings", "Payments", "Invoices", "Users")
 
 
 class FixtureCursor:
@@ -58,6 +58,7 @@ def main():
         cursor.execute("""
             SET NOCOUNT ON;
             CREATE TABLE #T167_Users (UserID INT, Role VARCHAR(20), Status VARCHAR(20));
+            CREATE TABLE #T167_BookingOperationEvents(EventID INT,BookingID INT,EventType VARCHAR(40));
             CREATE TABLE #T167_Bookings (BookingID INT, UserID INT, FieldID INT,
                 BookingDate DATE, StartTime TIME, EndTime TIME, TotalAmount DECIMAL(18,2), Status VARCHAR(20));
             CREATE TABLE #T167_Payments (BookingID INT, PaymentType VARCHAR(30), Status VARCHAR(20), Amount DECIMAL(18,2));

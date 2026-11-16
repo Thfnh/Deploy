@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
+from datetime import datetime
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "backend"))
 
@@ -75,13 +76,13 @@ class CancellationReviewTests(unittest.TestCase):
         cursor = conn.cursor.return_value
         cursor.rowcount = 1
         cursor.fetchone.side_effect = [(20,), SimpleNamespace(
-            BookingID=20, Status="PENDING_REVIEW", Reason="Test reason"), (30,)]
+            BookingID=20, Status="PENDING_REVIEW", Reason="Test reason"), None, (30,)]
         with patch("services.cancellation_request_service.rules._check_actor", return_value="ADMIN"), \
              patch("services.cancellation_request_service.rules._get_booking",
-                   return_value=SimpleNamespace(Status="CONFIRMED")), \
+                   return_value=SimpleNamespace(Status="CONFIRMED", BookingDate="2099-01-01", StartTime="18:00")), \
              patch("services.cancellation_request_service.rules._payment_summary", return_value=(0, False)), \
              patch("services.cancellation_request_service.rules._paid_invoice_exists", return_value=False), \
-             patch("services.cancellation_request_service.rules._booking_now"), \
+             patch("services.cancellation_request_service.rules._booking_now", return_value=datetime(2026,11,16)), \
              patch("services.cancellation_request_service.rules._rule_violation", return_value=None):
             response = self.post({"decision": "APPROVED"})
         self.assertEqual(response.status_code, 200)
@@ -97,6 +98,33 @@ class CancellationReviewTests(unittest.TestCase):
                              token=create_access_token(2, "CUSTOMER"))
         self.assertEqual(response.status_code, 403)
         self.connection.assert_not_called()
+
+    def test_approval_after_start_is_blocked_without_cancelling_booking(self):
+        conn = self.connection.return_value
+        cursor = conn.cursor.return_value
+        cursor.fetchone.side_effect = [(20,), SimpleNamespace(BookingID=20, Status="PENDING_REVIEW", Reason="Test")]
+        with patch("services.cancellation_request_service.rules._check_actor", return_value="ADMIN"), \
+             patch("services.cancellation_request_service.rules._get_booking", return_value=SimpleNamespace(Status="CONFIRMED", BookingDate="2026-11-16", StartTime="06:00")), \
+             patch("services.cancellation_request_service.rules._booking_now", return_value=datetime(2026,11,16,6)):
+            response = self.post({"decision":"APPROVED"})
+        self.assertEqual(response.status_code,409)
+        self.assertEqual(response.json["code"],"BOOKING_ALREADY_STARTED")
+        conn.commit.assert_not_called()
+        conn.rollback.assert_called_once()
+        self.assertFalse(any("UPDATE dbo.Bookings" in call.args[0] for call in cursor.execute.call_args_list))
+
+    def test_customer_timely_request_is_not_lost_due_to_late_admin_review(self):
+        conn=self.connection.return_value;cur=conn.cursor.return_value;cur.rowcount=1
+        req=SimpleNamespace(BookingID=20,Status="PENDING_REVIEW",Reason="Timely request",RequestedAt=datetime(2026,11,15,20))
+        cur.fetchone.side_effect=[(20,),req,None,(30,)]
+        with patch("services.cancellation_request_service.rules._check_actor",return_value="ADMIN"), \
+             patch("services.cancellation_request_service.rules._get_booking",return_value=SimpleNamespace(Status="CONFIRMED",BookingDate="2026-11-16",StartTime="06:00",AttendanceState=None)), \
+             patch("services.cancellation_request_service.rules._booking_now",return_value=datetime(2026,11,16,6,1)), \
+             patch("services.cancellation_request_service.rules._payment_summary",return_value=(100,False)), \
+             patch("services.cancellation_request_service.rules._paid_invoice_exists",return_value=False):
+            response=self.post({"decision":"APPROVED"})
+        self.assertEqual(response.status_code,200)
+        conn.commit.assert_called_once()
 
 
 if __name__ == "__main__":

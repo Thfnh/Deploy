@@ -19,7 +19,7 @@ export function reportCsv(report) {
   const rows = [
     ["Báo cáo thống kê", report.from, report.to],
     ["Ngày giờ", "Giờ lưu trong database (database-local)"],
-    ["Tiền đã thu (VND)", report.grossRevenue], ["Đã hoàn cọc (VND)", report.refundedAmount],
+    ["Tiền đã thu (VND)", report.grossRevenue], ["Đã hoàn tiền (VND)", report.refundedAmount],
     ["Doanh thu thuần (VND)", report.revenue], ["Số đơn hoàn thành và đã thu đủ tiền theo ngày đặt sân", report.bookingCount],
     ["Hóa đơn phát hành", report.invoiceCount], [],
     ["Tổng hợp đơn theo ngày đặt sân", "Số lượng"],

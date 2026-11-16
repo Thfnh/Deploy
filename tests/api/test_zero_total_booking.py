@@ -154,7 +154,7 @@ class ZeroTotalBookingTests(unittest.TestCase):
         self.conn.commit.assert_not_called()
 
     def test_free_booking_with_no_receipts_cannot_be_charged_by_uc09(self):
-        booking=Row(BookingID=10,UserID=1,TotalAmount=0,Status="COMPLETED",InvoiceID=None)
+        booking=Row(BookingID=10,UserID=1,TotalAmount=0,Status="COMPLETED",InvoiceID=None,BookingDate="2020-01-01",StartTime="06:00")
         self.cur.fetchone.side_effect=[Row(Role="ADMIN",Status="ACTIVE"),booking,(0,0,0)]
         with patch("services.invoice_cash_service.get_connection",return_value=self.conn):
             response=self.client.post("/api/admin/bookings/10/confirm-final-payment",

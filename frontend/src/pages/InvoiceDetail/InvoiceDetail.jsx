@@ -8,7 +8,7 @@ import "./InvoiceDetail.css";
 const money = (value) => new Intl.NumberFormat("vi-VN", {
   style: "currency", currency: "VND",
 }).format(value ?? 0);
-const statuses = { UNPAID: "Chưa thanh toán", PARTIALLY_PAID: "Đã thanh toán một phần", PAID: "Đã thanh toán đủ", UNKNOWN: "Chưa có trạng thái thanh toán" };
+const statuses = { REFUND_PENDING: "Ch\u1edd ho\u00e0n ti\u1ec1n", REFUNDED: "\u0110\u00e3 ho\u00e0n ti\u1ec1n", RETAINED_DEPOSIT: "Gi\u1eef c\u1ecdc", UNPAID: "Chưa thanh toán", PARTIALLY_PAID: "Đã thanh toán một phần", PAID: "Đã thanh toán đủ", UNKNOWN: "Chưa có trạng thái thanh toán" };
 
 export default function InvoiceDetail({ adminView = false }) {
   const { invoiceId, bookingId } = useParams();
@@ -76,7 +76,7 @@ function InvoiceView({ invoiceId, bookingId, onRefresh, adminView }) {
           <dt>Đã đặt cọc</dt><dd>{money(invoice.depositAmount)}</dd>
           <dt>Đã thanh toán</dt><dd>{money(invoice.paidAmount)}</dd>
           <dt>Còn phải thanh toán</dt><dd><strong>{money(invoice.remainingAmount)}</strong></dd>
-          <dt>Đã hoàn cọc (UC07)</dt><dd>{money(invoice.refundedAmount)}</dd>
+          <dt>Đã hoàn tiền (UC07)</dt><dd>{money(invoice.refundedAmount)}</dd>
         </dl>
         {invoice.bookingStatus === "CANCELLED" && <p>Booking đã hủy. Số tiền trên phản ánh lịch sử thu tiền; tiền hoàn được hiển thị riêng.</p>}
       </section>

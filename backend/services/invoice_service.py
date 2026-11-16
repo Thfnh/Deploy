@@ -1,6 +1,7 @@
 """UC08 read-only invoice view; payment arithmetic is shared with UC09."""
 from services.invoice_cash_service import _connection, _current_role, _summary
 from services.payment_service import PaymentError
+from services.business_time import database_iso
 
 
 def get_invoice(user_id, *, invoice_id=None, booking_id=None):
@@ -18,10 +19,14 @@ def get_invoice(user_id, *, invoice_id=None, booking_id=None):
                    F.FieldName, F.FieldType, F.Location,
                    I.InvoiceID, I.Amount AS InvoiceAmount,
                    I.PaidAmount AS InvoicePaidAmount,
-                   I.PaymentStatus AS InvoicePaymentStatus, I.CreatedDate
+                   I.PaymentStatus AS InvoicePaymentStatus, I.CreatedDate,
+                   COALESCE(R.Amount,0) AS RefundedAmount, Attendance.EventType AS AttendanceState
             FROM Bookings B
             LEFT JOIN Invoices I ON I.BookingID = B.BookingID
             LEFT JOIN FootballFields F ON F.FieldID = B.FieldID
+            LEFT JOIN dbo.BookingDepositRefunds R ON R.BookingID=B.BookingID
+            OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                         WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
             WHERE {condition}
         """, invoice_id if invoice_id is not None else booking_id)
         row = cursor.fetchone()
@@ -51,7 +56,7 @@ def get_invoice(user_id, *, invoice_id=None, booking_id=None):
             "fieldType": row.FieldType, "location": row.Location,
             "bookingDate": str(row.BookingDate),
             "startTime": str(row.StartTime)[:5], "endTime": str(row.EndTime)[:5],
-            "createdDate": str(row.CreatedDate) if row.CreatedDate else None,
+            "createdDate": database_iso(row.CreatedDate) if row.CreatedDate else None,
             "refundedAmount": float(refund.Amount) if refund else 0,
         })
         return info

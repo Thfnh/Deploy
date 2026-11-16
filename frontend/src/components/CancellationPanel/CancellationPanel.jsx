@@ -2,9 +2,15 @@
 import { useEffect, useState } from "react";
 import { getCancellationInfo, downloadRefundEvidence } from "../../services/cancellation_service";
 import CancelBookingModal from "../CancelBookingModal/CancelBookingModal";
+import CancellationOutcome from "./CancellationOutcome";
+import { cancellationDeadlinePassed } from "../../utils/cancellationDeadline";
+import useBookingClock from "../../hooks/useBookingClock";
+import { formatBusinessTime } from "../../utils/businessClock";
 import "./CancellationPanel.css";
 
-export default function CancellationPanel({ bookingId, bookingStatus, onCancelled }) {
+export default function CancellationPanel({ bookingId, bookingStatus, bookingDate, startTime, onCancelled }) {
+  const now = useBookingClock();
+  const deadlinePassed = cancellationDeadlinePassed(bookingDate, startTime, now);
   const [info, setInfo] = useState(null);
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -26,14 +32,15 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
 
   useEffect(() => {
     let active = true;
+    let timer;
 
     setLoading(true);
     setInfo(null);
     setError("");
 
-    getCancellationInfo(bookingId)
+    const poll = () => getCancellationInfo(bookingId)
       .then((v) => {
-        if (active) setInfo(v);
+        if (active) { setInfo(v); setError(""); }
       })
       .catch((e) => {
         if (active) {
@@ -41,11 +48,16 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
         }
       })
       .finally(() => {
-        if (active) setLoading(false);
+        if (active) {
+          setLoading(false);
+          timer = window.setTimeout(poll, 10_000);
+        }
       });
+    poll();
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, [bookingId, bookingStatus]);
 
@@ -92,7 +104,7 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
         </p>
       )}
 
-      {notice && (
+      {notice && !["APPROVED", "REJECTED"].includes(info?.latestRequest?.status) && (
         <p
           className="uc07-panel-success"
           role="status"
@@ -103,26 +115,28 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
 
       {info && !loading && (
         <>
-          <p className="uc07-panel-status">
+          <CancellationOutcome request={info.latestRequest} bookingId={bookingId} />
+          {deadlinePassed && !["CANCELLED", "COMPLETED"].includes(bookingStatus) && <p className="uc07-panel-error" role="status">Đã hết hạn hủy sân. Bạn chỉ có thể gửi yêu cầu trước giờ bắt đầu ít nhất 2 tiếng.</p>}
+          {!info.latestRequest && !deadlinePassed && <p className="uc07-panel-status">
             {info.message}
-          </p>
+          </p>}
 
           {info.refundStatus === "REFUNDED" && (
             <div className="uc07-panel-success">
-              <p role="status">Chủ sân đã hoàn {Number(info.refundedAmount).toLocaleString("vi-VN")}đ tiền cọc cho bạn. Thời gian xác nhận: {info.refundedAt}.</p>
+              <p role="status">Chủ sân đã hoàn {Number(info.refundedAmount).toLocaleString("vi-VN")}đ cho bạn. Thời gian xác nhận: {formatBusinessTime(info.refundedAt)}.</p>
               {info.refundTransactionReference && <p>Mã giao dịch: {info.refundTransactionReference}</p>}
               {info.hasRefundEvidence && <button type="button" className="uc07-panel-refresh"
-                onClick={() => downloadRefundEvidence(bookingId).catch(e => setError(e.message))}>Tải biên lai hoàn cọc</button>}
+                onClick={() => downloadRefundEvidence(bookingId).catch(e => setError(e.message))}>Tải biên lai hoàn tiền</button>}
             </div>
           )}
           {info.latestRequest && (
             <div className="uc07-panel-history">
               <strong>
-                Yêu cầu gần nhất: {info.latestRequest.status}
+                Yêu cầu gần nhất: {{ PENDING_REVIEW: "Đang chờ duyệt", APPROVED: "Đã chấp nhận hủy", REJECTED: "Đã từ chối hủy" }[info.latestRequest.status] || "Đang cập nhật"}
               </strong>
 
               <p>
-                Lý do:{" "}
+                Lý do khách yêu cầu hủy:{" "}
                 {info.latestRequest.reason || "Không có"}
               </p>
 
@@ -134,7 +148,7 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
               )}
               {info.latestRequest.refundAccount && (
                 <div>
-                  <strong>Tài khoản nhận hoàn cọc đã gửi</strong>
+                  <strong>Tài khoản nhận hoàn tiền đã gửi</strong>
                   <p>Ngân hàng: {info.latestRequest.refundAccount.bankName}</p>
                   <p>Số tài khoản: {info.latestRequest.refundAccount.accountNumber}</p>
                   <p>Chủ tài khoản: {info.latestRequest.refundAccount.accountHolder}</p>
@@ -156,7 +170,7 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
 
               <p>
                 Thời điểm:{" "}
-                {info.cancellation.canceledAt}
+                {formatBusinessTime(info.cancellation.canceledAt)}
               </p>
 
               <p>
@@ -169,8 +183,8 @@ export default function CancellationPanel({ bookingId, bookingStatus, onCancelle
             </div>
           )}
 
-          {info.canCancel &&
-            info.latestRequest?.status !== "PENDING_REVIEW" && (
+          {info.canCancel && !deadlinePassed &&
+            !["PENDING_REVIEW", "REJECTED", "APPROVED"].includes(info.latestRequest?.status) && (
               <button
                 type="button"
                 className="uc07-panel-cancel"
