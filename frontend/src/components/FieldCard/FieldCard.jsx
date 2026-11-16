@@ -240,6 +240,14 @@ const FieldCard = ({
         </div>
 
 
+        <Link
+          className="field-card-review-link"
+          to={`/fields/${id}/reviews`}
+          aria-label={`Xem đánh giá ${name || `Sân ${id}`}`}
+        >
+          <span aria-hidden="true">★</span> Xem đánh giá của sân
+        </Link>
+
         <p className="field-card-address">
           {address ||
             "Chưa cập nhật địa chỉ"}
@@ -412,7 +420,6 @@ const FieldCard = ({
                 : allSlotsPast ? "Đã qua giờ" : "Không có khung giờ trống"}
         </button>
 
-        <Link className="field-card-review-link" to={`/fields/${id}/reviews`}>Xem đánh giá của sân</Link>
 
       </div>
 
