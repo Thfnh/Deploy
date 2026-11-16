@@ -38,7 +38,11 @@ try {
             bookingStatusCount:{},bookingBreakdown:{...zeroBreakdown},invoiceStatusCount:{},dailyRevenue:[{date:body.from,grossRevenue:0,refundedAmount:0,revenue:0}]});
           if(mode==='negative')Object.assign(body,{grossRevenue:0,refundedAmount:80,revenue:-80,dailyRevenue:[{date:body.from,grossRevenue:0,refundedAmount:80,revenue:-80}]});
           if(mode==='deposit-only')Object.assign(body,{bookingCount:0,bookingStatusCount:{},bookingBreakdown:{...zeroBreakdown,deposited:1,total:1}});
-          if(mode==='legacy')delete body.bookingBreakdown.cancelled;
+          body.depositAmount=mode==='empty'||mode==='negative'?0:100;body.venueCollectedAmount=body.grossRevenue-body.depositAmount;body.dailyRevenue=body.dailyRevenue.map(row=>({...row,depositAmount:0,venueCollectedAmount:row.grossRevenue}));
+          body.bookingLifecycleBreakdown={pending:0,confirmed:3,in_progress:0,ended:0,no_show:0,cancelled:3,completed:2,unknown:0,total:8};
+          if(mode==='empty'||mode==='negative')body.bookingLifecycleBreakdown=Object.fromEntries(Object.keys(body.bookingLifecycleBreakdown).map(key=>[key,0]));
+          if(mode==='deposit-only')body.bookingLifecycleBreakdown={pending:0,confirmed:1,in_progress:0,ended:0,no_show:0,cancelled:0,completed:0,unknown:0,total:1};
+          if(mode==='legacy')delete body.bookingLifecycleBreakdown.cancelled;
           if(mode==='unsafe-name')body.fieldUtilization[0].fieldName='=HYPERLINK("https://example.invalid","<img src=x onerror=alert(1)>")';
         }
       }
@@ -61,19 +65,19 @@ try {
   assert.equal(lastQuery.from.slice(-2),'01');
   assert.equal(await evaluate('document.querySelector(".uc16-booking-summary header p").textContent'),`Ngày đặt sân: ${lastQuery.from} — ${lastQuery.to}`);
   checks.push('Default month-to-date range ends today in Vietnam; summary shows applied boundaries');
-  assert.equal(await evaluate('document.querySelectorAll(".uc16-metric").length'),4);
+  assert.equal(await evaluate('document.querySelectorAll(".uc16-metric").length'),5);
   assert.ok(await evaluate('document.querySelector(".uc16-metrics").textContent.includes("350")'));
   assert.equal(await evaluate('document.querySelectorAll(".uc16-fields tbody tr").length'),3);
   assert.ok(await evaluate('document.querySelector(".uc16-definition").textContent.includes("24 giờ")'));
   assert.equal(await evaluate('document.querySelector(".uc16-page").textContent.includes("Trạng thái thanh toán")'),false);
-  assert.equal(await evaluate('document.querySelectorAll(".uc16-metric")[2].textContent.includes("Đã hoàn thành và đã thu đủ tiền")'),true);
+  assert.equal(await evaluate('document.querySelectorAll(".uc16-metric")[3].textContent.includes("Đã hoàn thành và đã thu đủ tiền")'),true);
   checks.push('Completed fully paid booking count; payment-status section removed; chart and utilization retained');
-  assert.equal(await evaluate('document.querySelectorAll(".uc16-booking-summary [data-booking-group]").length'),3);
+  assert.equal(await evaluate('document.querySelectorAll(".uc16-booking-summary [data-booking-group]").length'),7);
   assert.equal(await evaluate('document.querySelector("[data-booking-group=cancelled] dd").textContent'),'3');
   assert.equal(await evaluate('document.querySelector(".uc16-booking-total dd").textContent'),'8');
   mode='deposit-only';await click('Làm mới');await ready();
-  assert.equal(await evaluate('document.querySelectorAll(".uc16-metric")[2].querySelector("strong").textContent'),'0');
-  assert.equal(await evaluate('document.querySelector("[data-booking-group=deposited] dd").textContent'),'1');
+  assert.equal(await evaluate('document.querySelectorAll(".uc16-metric")[3].querySelector("strong").textContent'),'0');
+  assert.equal(await evaluate('document.querySelector("[data-booking-group=confirmed] dd").textContent'),'1');
   assert.equal(await evaluate('document.querySelector(".uc16-booking-total dd").textContent'),'1');
   checks.push('Deposit-only booking excluded from completed card; right column shows deposit and reconciled total');
   mode='normal';await click('Làm mới');await ready();
@@ -98,7 +102,7 @@ try {
   assert.equal(await evaluate('document.querySelector(".uc16-page").textContent.includes("NaN")'),false);
   assert.equal(await evaluate('document.querySelector("[data-booking-group=cancelled] dd").textContent'),'—');
   assert.equal(await evaluate('document.querySelector(".uc16-booking-total dd").textContent'),'—');
-  checks.push('Only three booking groups shown; legacy missing counts show unavailable rather than NaN or fabricated zero');
+  checks.push('All seven lifecycle groups shown; legacy missing counts show unavailable rather than NaN or fabricated zero');
   mode='unsafe-name';await click('Làm mới');await ready();
   assert.equal(await evaluate('document.querySelector(".uc16-fields img")===null'),true);
   await evaluate('window.__csv=null;URL.createObjectURL=blob=>{window.__csv=blob;return "blob:test-fixture";};HTMLAnchorElement.prototype.click=function(){window.__filename=this.download;};');

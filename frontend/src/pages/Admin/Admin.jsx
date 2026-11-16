@@ -204,7 +204,7 @@ export default function Admin() {
             error: dailyState.error,
             to: "/admin/reports",
             currency: true,
-            hint: "Khoản thu thành công − hoàn tiền đã xác nhận",
+            hint: "Tiền thực nhận − đã hoàn, theo ngày đá",
           },
           {
             label: "Yêu cầu hủy chờ duyệt",
@@ -438,9 +438,8 @@ export default function Admin() {
               )}
             </ResourceState>
             <p className="dash-note">
-              VND · Theo ngày ghi nhận trong báo cáo UC16 (
-              {weekState.data?.dateBasis || "database-local"}). Doanh thu thuần
-              có thể bằng 0 hoặc âm.
+              VND · Theo ngày đá của đơn đặt sân. Tiền thực nhận trừ khoản đã hoàn;
+              doanh thu thuần có thể bằng 0 hoặc âm.
             </p>
           </section>
           <section className="dash-card">
