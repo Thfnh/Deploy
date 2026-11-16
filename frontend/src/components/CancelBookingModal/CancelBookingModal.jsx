@@ -28,7 +28,7 @@ export default function CancelBookingModal({
 
   if (!open) return null;
 
-  const hasDeposit = Number(cancellationInfo?.depositPaid || 0) > 0;
+  const hasDeposit = Number(cancellationInfo?.refundableAmount ?? cancellationInfo?.depositPaid ?? 0) > 0;
 
   const submit = async (event) => {
     event.preventDefault();
@@ -76,11 +76,11 @@ export default function CancelBookingModal({
           khi được duyệt.
         </p>
 
-        {Number(cancellationInfo?.depositPaid || 0) > 0 && (
+        {hasDeposit && (
           <p>
-            Tiền cọc đã thu:{" "}
+            Tiền đã thu cần đối soát hoàn:{" "}
             {Number(
-              cancellationInfo.depositPaid
+              cancellationInfo.refundableAmount ?? cancellationInfo.depositPaid
             ).toLocaleString("vi-VN")}
             đ. Hoàn tiền cần được xem xét
             thủ công, không tự động.
@@ -105,7 +105,7 @@ export default function CancelBookingModal({
 
         {hasDeposit && (
           <fieldset className="uc07-refund-account" disabled={loading}>
-            <legend>Tài khoản nhận hoàn cọc</legend>
+            <legend>Tài khoản nhận hoàn tiền</legend>
             <p>Nhập chính xác thông tin để chủ sân chuyển lại tiền cọc sau khi duyệt hủy.</p>
             <label htmlFor="uc07-bank-name">Ngân hàng</label>
             <input id="uc07-bank-name" name="bankName" type="text" required maxLength={100}

@@ -1,9 +1,13 @@
+import useBookingClock from "../../hooks/useBookingClock";
+import BookingPaymentBadge from "../../components/BookingPaymentBadge/BookingPaymentBadge";
 
 import {
   useEffect,
   useMemo,
   useState,
 } from "react";
+import { bookingDisplayStatus } from "../../utils/bookingStatus";
+import { cancellationDeadlinePassed } from "../../utils/cancellationDeadline";
 
 import {
   CalendarDays,
@@ -28,6 +32,10 @@ import "./BookingHistory.css";
 
 
 const STATUS_META = {
+  IN_PROGRESS: { label: "Đang đá", className: "booking-status-progress" },
+  AWAITING_ARRIVAL: { label: "Chờ khách đến", className: "booking-status-ended" },
+  NO_SHOW: { label: "Khách không đến", className: "booking-status-ended" },
+  ENDED: { label: "Đã kết thúc / hết giờ", className: "booking-status-ended" },
 
   PENDING: {
     label:
@@ -158,7 +166,7 @@ function BookingHistory() {
 
 
   const [
-    bookings,
+    allBookings,
     setBookings,
   ] = useState([]);
 
@@ -189,102 +197,34 @@ function BookingHistory() {
       .toUpperCase();
 
 
-  const loadBookings =
-    async () => {
+  const now = useBookingClock();
+  const bookings = useMemo(() => allBookings.filter(booking => !statusFilter || bookingDisplayStatus(booking, now) === statusFilter), [allBookings, statusFilter, now]);
+  const [revision, setRevision] = useState(0);
+  const loadBookings = () => setRevision(value => value + 1);
 
-      if (!user?.UserID) {
-
-        return;
-
-      }
-
-
+  useEffect(() => {
+    if (!user?.UserID || role !== "CUSTOMER") return;
+    let active = true;
+    let timer;
+    const load = async (initial = false) => {
+      if (initial) setLoading(true);
       try {
-
-        setLoading(
-          true
-        );
-
-
-        setError(
-          ""
-        );
-
-
-        const result =
-          await getCustomerBookings(
-            user.UserID,
-            {
-              status:
-                statusFilter,
-            }
-          );
-
-
-        setBookings(
-
-          Array.isArray(
-            result?.Bookings
-          )
-            ? result.Bookings
-            : []
-
-        );
-
-      } catch (
-        requestError
-      ) {
-
-        console.error(
-          "LOAD CUSTOMER BOOKINGS ERROR:",
-          requestError
-        );
-
-
-        setBookings([]);
-
-
-        setError(
-
-          requestError.message ||
-          "Không thể tải lịch sử đặt sân."
-
-        );
-
+        const result = await getCustomerBookings(user.UserID);
+        if (!active) return;
+        setBookings(Array.isArray(result?.Bookings) ? result.Bookings : []);
+        setError("");
+      } catch (err) {
+        if (active) setError(err.message || "Không thể tải lịch sử đặt sân.");
       } finally {
-
-        setLoading(
-          false
-        );
-
+        if (active) {
+          setLoading(false);
+          timer = window.setTimeout(() => load(), 10_000);
+        }
       }
-
     };
-
-
-  useEffect(
-    () => {
-
-      if (
-        !user?.UserID ||
-        role !== "CUSTOMER"
-      ) {
-
-        return;
-
-      }
-
-
-      loadBookings();
-
-    },
-    [
-      user?.UserID,
-      role,
-      statusFilter,
-    ]
-  );
-
+    load(true);
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [user?.UserID, role, revision]);
 
   // UC07: chuyển sang trang chi tiết và cuộn tới phần hủy đơn
   const handleCancelBooking = (bookingId) => {
@@ -301,7 +241,7 @@ function BookingHistory() {
         const result = {
 
           total:
-            bookings.length,
+            allBookings.length,
 
           pending:
             0,
@@ -314,23 +254,24 @@ function BookingHistory() {
 
           cancelled:
             0,
+          awaiting: 0,
+          noShow: 0,
+          inProgress: 0,
+          ended: 0,
 
         };
 
 
-        bookings.forEach(
+        allBookings.forEach(
           (
             booking
           ) => {
 
-            const status =
-              String(
-                booking.Status ||
-                ""
-              )
-                .trim()
-                .toUpperCase();
-
+            const status = bookingDisplayStatus(booking, now);
+            if (status === "AWAITING_ARRIVAL") result.awaiting += 1;
+            if (status === "NO_SHOW") result.noShow += 1;
+            if (status === "IN_PROGRESS") result.inProgress += 1;
+            if (status === "ENDED") result.ended += 1;
 
             if (
               status ===
@@ -383,7 +324,8 @@ function BookingHistory() {
 
       },
       [
-        bookings,
+        allBookings,
+        now,
       ]
     );
 
@@ -478,60 +420,13 @@ function BookingHistory() {
 
 
         <section className="booking-history-stats">
-
-          <div>
-
-            <span>
-              Tổng đơn
-            </span>
-
-            <strong>
-              {counts.total}
-            </strong>
-
-          </div>
-
-
-          <div>
-
-            <span>
-              Chờ xác nhận
-            </span>
-
-            <strong>
-              {counts.pending}
-            </strong>
-
-          </div>
-
-
-          <div>
-
-            <span>
-              Đã xác nhận
-            </span>
-
-            <strong>
-              {counts.confirmed}
-            </strong>
-
-          </div>
-
-
-          <div>
-
-            <span>
-              Hoàn thành
-            </span>
-
-            <strong>
-              {counts.completed}
-            </strong>
-
-          </div>
-
+          {[
+            ["T\u1ed5ng \u0111\u01a1n",counts.total],["Ch\u1edd x\u00e1c nh\u1eadn",counts.pending],
+            ["\u0110\u00e3 x\u00e1c nh\u1eadn",counts.confirmed],["Ch\u1edd kh\u00e1ch \u0111\u1ebfn",counts.awaiting],
+            ["\u0110ang \u0111\u00e1",counts.inProgress],["\u0110\u00e3 k\u1ebft th\u00fac / h\u1ebft gi\u1edd",counts.ended],
+            ["Ho\u00e0n th\u00e0nh",counts.completed],["Kh\u00e1ch kh\u00f4ng \u0111\u1ebfn",counts.noShow],["\u0110\u00e3 h\u1ee7y",counts.cancelled]
+          ].map(([label,count])=><div key={label}><span>{label}</span><strong>{count}</strong></div>)}
         </section>
-
 
         <section className="booking-history-toolbar">
 
@@ -571,6 +466,10 @@ function BookingHistory() {
               <option value="COMPLETED">
                 Hoàn thành
               </option>
+              <option value="IN_PROGRESS">Đang đá</option>
+              <option value="AWAITING_ARRIVAL">Chờ khách đến</option>
+              <option value="NO_SHOW">Khách không đến</option>
+              <option value="ENDED">Đã kết thúc / hết giờ</option>
 
 
               <option value="CANCELLED">
@@ -675,32 +574,15 @@ function BookingHistory() {
                     booking
                   ) => {
 
-                    const status =
-                      String(
-                        booking.Status ||
-                        ""
-                      )
-                        .trim()
-                        .toUpperCase();
+                    const status = bookingDisplayStatus(booking, now);
 
 
-                    const meta =
-                      STATUS_META[
-                        status
-                      ] || {
-
-                        label:
-                          status ||
-                          "Không xác định",
-
-                        className:
-                          "booking-history-status-default",
-
-                      };
-
+                    const meta = STATUS_META[status] || {label:status || "Không xác định",className:"booking-history-status-default"};
 
                     const canRequestCancellation =
-                      status === "PENDING" || status === "CONFIRMED";
+                      (status === "PENDING" || status === "CONFIRMED") &&
+                      !cancellationDeadlinePassed(booking.BookingDate, booking.StartTime) &&
+                      !["PENDING_REVIEW", "REJECTED", "APPROVED"].includes(booking.CancellationRequest?.status);
 
 
                     return (
@@ -835,6 +717,7 @@ function BookingHistory() {
                         </div>
 
 
+                        <CancellationOutcome request={booking.CancellationRequest} bookingId={booking.BookingID} />
                         {Number(booking.RefundedAmount) > 0 && (
                           <p role="status" className="deposit-refunded">Chủ sân đã hoàn {formatMoney(booking.RefundedAmount)}đ tiền cọc cho đơn #{booking.BookingID}.</p>
                         )}
@@ -869,14 +752,7 @@ function BookingHistory() {
                             </span>
 
 
-                            <strong>
-
-                              {
-                                booking.PaymentStatus ||
-                                "Chưa có thông tin"
-                              }
-
-                            </strong>
+                            <BookingPaymentBadge booking={booking} />
 
                           </div>
 
@@ -934,3 +810,4 @@ function BookingHistory() {
 
 
 export default BookingHistory;
+import CancellationOutcome from "../../components/CancellationPanel/CancellationOutcome";

@@ -1,5 +1,6 @@
 """UC12 administration; all financial writes remain exclusively in UC06/07/09."""
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
+from services.business_time import database_iso, database_day_start
 
 from services.invoice_cash_service import _booking, _connection, _current_role, _summary
 from services.payment_service import PaymentError
@@ -11,7 +12,7 @@ def _admin(cursor, user_id):
 
 
 def _iso(value):
-    return value.isoformat() if value is not None else None
+    return database_iso(value) if isinstance(value,datetime) else value.isoformat() if value is not None else None
 
 
 def _filters(params):
@@ -19,7 +20,7 @@ def _filters(params):
     if set(params) - allowed or any(len(params.getlist(k)) != 1 for k in params):
         raise PaymentError("Tham số lọc không hợp lệ", 400, "INVALID_FILTER")
     status = params.get("status", "").strip().upper()
-    if status not in {"", "ACTIVE", "CANCELLED", "UNPAID", "PARTIALLY_PAID", "PAID"}:
+    if status not in {"", "ACTIVE", "CANCELLED", "UNPAID", "PARTIALLY_PAID", "PAID", "REFUND_PENDING", "REFUNDED", "RETAINED_DEPOSIT"}:
         raise PaymentError("Trạng thái không hợp lệ", 400, "INVALID_FILTER")
     customer = params.get("customer", "").strip()
     if len(customer) > 100:
@@ -52,12 +53,16 @@ _SELECT = """
            I.InvoiceID, I.Amount AS InvoiceAmount, I.PaidAmount AS InvoicePaidAmount,
            I.PaymentStatus AS InvoicePaymentStatus, I.CreatedDate,
            U.FullName, U.Email, F.FieldName, F.Location,
-           C.CancelledBy, C.CancelledAt, C.Reason
+           C.CancelledBy, C.CancelledAt, C.Reason,
+           COALESCE(R.Amount,0) AS RefundedAmount, Attendance.EventType AS AttendanceState
     FROM dbo.Invoices I
     JOIN dbo.Bookings B ON B.BookingID = I.BookingID
     JOIN dbo.Users U ON U.UserID = B.UserID
     LEFT JOIN dbo.FootballFields F ON F.FieldID = B.FieldID
     LEFT JOIN dbo.InvoiceAdminCancellations C ON C.InvoiceID = I.InvoiceID
+    LEFT JOIN dbo.BookingDepositRefunds R ON R.BookingID=B.BookingID
+    OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                 WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
 """
 
 
@@ -98,18 +103,26 @@ def list_invoices(user_id, params):
                 paid = """(SELECT COALESCE(SUM(P.Amount),0) FROM dbo.Payments P
                            WHERE P.BookingID=B.BookingID AND P.Status='SUCCESS'
                            AND P.PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA'))"""
-                where.append({"UNPAID": f"{paid}=0 AND B.TotalAmount>0", "PAID": f"{paid}=B.TotalAmount",
-                              "PARTIALLY_PAID": f"{paid}>0 AND {paid}<B.TotalAmount"}[status])
+                net=f"({paid}-COALESCE(R.Amount,0))"
+                deposit="""(SELECT COALESCE(SUM(P.Amount),0) FROM dbo.Payments P WHERE P.BookingID=B.BookingID AND P.Status='SUCCESS' AND P.PaymentType='DEPOSIT')"""
+                financial_status=f"""CASE
+                    WHEN Attendance.EventType='NO_SHOW' AND {net}<={deposit} THEN 'RETAINED_DEPOSIT'
+                    WHEN B.Status='CANCELLED' AND COALESCE(R.Amount,0)>0 AND {net}=0 THEN 'REFUNDED'
+                    WHEN B.Status='CANCELLED' AND {net}>0 THEN 'REFUND_PENDING'
+                    WHEN B.Status='CANCELLED' AND {net}=0 AND B.TotalAmount>0 THEN 'UNPAID'
+                    WHEN {net}>=B.TotalAmount THEN 'PAID'
+                    WHEN {net}>0 THEN 'PARTIALLY_PAID' ELSE 'UNPAID' END"""
+                where.append(f"({financial_status})='{status}'")
         if customer:
             escaped = customer.replace("~", "~~").replace("%", "~%").replace("_", "~_").replace("[", "~[")
             where.append("(U.FullName LIKE ? ESCAPE '~' OR U.Email LIKE ? ESCAPE '~')")
             args.extend([f"%{escaped}%"] * 2)
         if "from" in dates:
             where.append("I.CreatedDate >= ?")
-            args.append(dates["from"])
+            args.append(database_day_start(dates["from"]))
         if "to" in dates:
             where.append("I.CreatedDate < ?")
-            args.append(dates["to"] + timedelta(days=1))
+            args.append(database_day_start(dates["to"] + timedelta(days=1)))
         query = _SELECT + " WHERE " + " AND ".join(where)
         # Fetch one extra row to avoid a separate, potentially inconsistent count query.
         cur.execute(query + " ORDER BY I.CreatedDate DESC, I.InvoiceID DESC OFFSET ? ROWS FETCH NEXT ? ROWS ONLY",

@@ -109,6 +109,10 @@ def cancellation_info(booking_id):
                 "Đã gửi yêu cầu hủy, đang chờ ADMIN duyệt"
             )
 
+        if info["latestRequest"] and info["latestRequest"]["status"] == "REJECTED":
+            info["canCancel"] = False
+            info["message"] = "Chủ sân đã từ chối hủy đơn này. Bạn không thể gửi lại yêu cầu hủy."
+
         return jsonify(info), 200
 
     except Exception as e:

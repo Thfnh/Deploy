@@ -29,12 +29,16 @@ from routes.review import review_bp
 from routes.admin_review import admin_review_bp
 from routes.admin_customer import admin_customer_bp
 from routes.admin_report import admin_report_bp
+from routes.business_time import business_time_bp
+from routes.booking_operations import booking_operations_bp
 
 # UC15 - Quản lý sân bóng
 from routes.field_management import field_management_bp
 
 
 app = Flask(__name__)
+app.register_blueprint(business_time_bp, url_prefix="/api")
+app.register_blueprint(booking_operations_bp, url_prefix="/api")
 app.register_blueprint(review_bp, url_prefix="/api")
 app.register_blueprint(admin_review_bp, url_prefix="/api/admin")
 app.register_blueprint(admin_customer_bp, url_prefix="/api/admin")

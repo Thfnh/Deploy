@@ -551,3 +551,8 @@
   }
 
 }
+.booking-history-status-rejected {
+  background: #fff7ed;
+  color: #9a3412;
+  border: 1px solid #fdba74;
+}

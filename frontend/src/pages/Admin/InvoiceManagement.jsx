@@ -5,7 +5,7 @@ import SettlementPanel from "../../components/SettlementPanel/SettlementPanel";
 import "./InvoiceManagement.css";
 
 const money = (value) => new Intl.NumberFormat("vi-VN", { style: "currency", currency: "VND" }).format(value ?? 0);
-const labels = { ACTIVE: "Còn hiệu lực", CANCELLED: "Đã hủy", UNPAID: "Chưa thanh toán", PARTIALLY_PAID: "Thanh toán một phần", PAID: "Đã thanh toán đủ", SUCCESS: "Thành công", PENDING: "Chờ xử lý", FAILED: "Thất bại", EXPIRED: "Hết hạn" };
+const labels = { REFUND_PENDING: "Ch\u1edd ho\u00e0n ti\u1ec1n", REFUNDED: "\u0110\u00e3 ho\u00e0n ti\u1ec1n", RETAINED_DEPOSIT: "Gi\u1eef c\u1ecdc", ACTIVE: "Còn hiệu lực", CANCELLED: "Đã hủy", UNPAID: "Chưa thanh toán", PARTIALLY_PAID: "Thanh toán một phần", PAID: "Đã thanh toán đủ", SUCCESS: "Thành công", PENDING: "Chờ xử lý", FAILED: "Thất bại", EXPIRED: "Hết hạn" };
 const displayDate = (value) => value ? String(value).replace("T", " ").slice(0, 19) : "—";
 const defaults = { status: "", customer: "", from: "", to: "", page: 1, pageSize: 20 };
 
@@ -34,7 +34,7 @@ export default function InvoiceManagement() {
     <form className="uc12-filters" onSubmit={search}>
       <label>Khách hàng<input name="customer" maxLength={100} value={draft.customer} onChange={update} placeholder="Tên hoặc email" /></label>
       <label>Trạng thái<select name="status" value={draft.status} onChange={update}>
-        <option value="">Tất cả</option>{["ACTIVE", "UNPAID", "PARTIALLY_PAID", "PAID", "CANCELLED"].map((s) => <option key={s} value={s}>{labels[s]}</option>)}
+        <option value="">Tất cả</option>{["ACTIVE", "UNPAID", "PARTIALLY_PAID", "PAID", "REFUND_PENDING", "REFUNDED", "RETAINED_DEPOSIT", "CANCELLED"].map((s) => <option key={s} value={s}>{labels[s]}</option>)}
       </select></label>
       <label>Phát hành từ<input type="date" name="from" value={draft.from} onChange={update} /></label>
       <label>Đến ngày<input type="date" name="to" min={draft.from || undefined} value={draft.to} onChange={update} /></label>
@@ -108,12 +108,12 @@ function InvoiceDetail({ invoiceId }) {
           <dt>Tổng tiền</dt><dd>{money(invoice.totalAmount)}</dd>
           <dt>Đã thanh toán</dt><dd>{money(invoice.paidAmount)}</dd>
           <dt>Còn lại</dt><dd>{money(invoice.remainingAmount)}</dd>
-          <dt>Đã hoàn cọc</dt><dd>{money(invoice.refund?.amount)}</dd>
+          <dt>Đã hoàn tiền</dt><dd>{money(invoice.refund?.amount)}</dd>
         </dl>
         {invoice.cancellation && <p>Hủy lúc {displayDate(invoice.cancellation.at)} bởi tài khoản #{invoice.cancellation.by}: {invoice.cancellation.reason}</p>}
       </div>
       <h2>Lịch sử thanh toán</h2>
-      <p>Khoản đã thu chỉ tính giao dịch thành công; tiền hoàn cọc hiển thị riêng.</p>
+      <p>Khoản đã thu chỉ tính giao dịch thành công; tiền hoàn tiền hiển thị riêng.</p>
       {invoice.payments.length === 0 ? <p>Chưa có giao dịch thanh toán.</p> : <div className="uc12-table"><table>
         <thead><tr>{["Giao dịch", "Loại", "Thời gian", "Phương thức", "Số tiền", "Trạng thái", "Tham chiếu"].map((s) => <th scope="col" key={s}>{s}</th>)}</tr></thead>
         <tbody>{invoice.payments.map((p) => <tr key={p.paymentId}><td>#{p.paymentId}</td><td>{p.type === "DEPOSIT" ? "Đặt cọc" : p.type === "FINAL_PAYMENT" ? "Thanh toán cuối" : p.type || "—"}</td><td>{displayDate(p.recordedAt)}</td><td>{p.method || "—"}</td><td>{money(p.amount)}</td><td>{labels[p.status] || p.status}</td><td>{p.reference || "—"}</td></tr>)}</tbody>

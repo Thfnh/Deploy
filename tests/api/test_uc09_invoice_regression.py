@@ -3,6 +3,7 @@ import os
 import sys
 import unittest
 from pathlib import Path
+from datetime import datetime
 from types import SimpleNamespace as Row
 from unittest.mock import MagicMock, patch
 
@@ -27,17 +28,32 @@ class CashPaymentRegressionTests(unittest.TestCase):
         db = patch("services.invoice_cash_service.get_connection", return_value=self.conn)
         db.start()
         self.addCleanup(db.stop)
+        clock = patch("services.invoice_cash_service.business_now", return_value=datetime(2026,11,16,18))
+        clock.start()
+        self.addCleanup(clock.stop)
         self.actor = Row(Role="ADMIN", Status="ACTIVE")
         self.headers = {"Authorization": "Bearer " + create_access_token(2, "ADMIN")}
 
     def row(self, **changes):
-        fields = dict(BookingID=10, UserID=1, TotalAmount=100000, Status="COMPLETED",
+        fields = dict(BookingID=10, UserID=1, TotalAmount=100000, Status="COMPLETED", BookingDate="2026-11-16", StartTime="18:00",
                       InvoiceID=20, InvoiceAmount=100000, InvoicePaidAmount=30000, InvoicePaymentStatus="PARTIALLY_PAID")
         fields.update(changes)
         return Row(**fields)
 
     def confirm(self):
         return self.client.post("/api/admin/bookings/10/confirm-final-payment", headers=self.headers)
+
+    def test_collection_blocked_before_start_and_enabled_at_start(self):
+        with patch("services.invoice_cash_service.business_now",return_value=datetime(2026,11,16,17,59,59)):
+            self.cur.fetchone.side_effect=[self.actor,self.row(Status="CONFIRMED"),(30000,0,0)]
+            response=self.client.get("/api/bookings/10/settlement",headers=self.headers)
+            self.assertFalse(response.json["canConfirm"])
+            self.assertEqual(response.json["confirmAvailableAt"],"2026-11-16T18:00:00+07:00")
+            self.cur.fetchone.side_effect=[self.actor,self.row(Status="CONFIRMED")]
+            response=self.confirm()
+            self.assertEqual(response.status_code,409)
+            self.assertEqual(response.json["code"],"BOOKING_NOT_STARTED")
+            self.conn.commit.assert_not_called()
 
     def test_final_cash_still_records_remaining_and_invoice_atomically(self):
         self.cur.fetchone.side_effect = [self.actor, self.row(), (30000, 0, 0), (51,)]
@@ -51,6 +67,44 @@ class CashPaymentRegressionTests(unittest.TestCase):
         self.assertTrue(any("INSERT INTO Payments" in q for q in writes))
         self.assertTrue(any("UPDATE Invoices" in q for q in writes))
         self.assertFalse(any("InvoiceAdminCancellations" in q for q in writes))
+
+    def test_can_collect_money_before_booking_is_completed(self):
+        self.cur.fetchone.side_effect = [self.actor, self.row(Status="CONFIRMED"), (30000, 0, 0)]
+        response = self.client.get("/api/bookings/10/settlement", headers=self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json["canConfirm"])
+        self.cur.fetchone.side_effect = [self.actor, self.row(Status="CONFIRMED"), (30000, 0, 0), (51,)]
+        response = self.confirm()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json["amount"], 70000)
+        writes = [call.args[0] for call in self.cur.execute.call_args_list]
+        self.assertFalse(any("UPDATE Bookings" in sql for sql in writes))
+        self.conn.commit.assert_called_once()
+
+    def test_can_receive_full_amount_at_venue_without_deposit(self):
+        self.cur.fetchone.side_effect=[self.actor,self.row(Status="CONFIRMED",InvoicePaidAmount=0),(0,0,0)]
+        response=self.client.get("/api/bookings/10/settlement",headers=self.headers)
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(response.json["canConfirm"])
+        self.cur.fetchone.side_effect=[self.actor,self.row(Status="CONFIRMED",InvoicePaidAmount=0),(0,0,0),(51,)]
+        response=self.confirm()
+        self.assertEqual(response.status_code,200)
+        self.assertEqual(response.json["amount"],100000)
+        self.conn.commit.assert_called_once()
+        self.assertTrue(any("Status='EXPIRED'" in call.args[0] and "Status='PENDING'" in call.args[0] for call in self.cur.execute.call_args_list))
+
+    def test_cancelled_and_no_show_refunds_do_not_appear_as_customer_debt(self):
+        cases=[
+            (dict(Status="CANCELLED",InvoicePaidAmount=100000,RefundedAmount=100000), (30000,70000,0),"REFUNDED",0),
+            (dict(Status="CANCELLED",InvoicePaidAmount=100000,RefundedAmount=70000,AttendanceState="NO_SHOW"),(30000,70000,0),"RETAINED_DEPOSIT",30000),
+            (dict(Status="CANCELLED",RefundedAmount=0),(30000,0,0),"REFUND_PENDING",30000)]
+        for changes,receipts,status,paid in cases:
+            self.cur.fetchone.side_effect=[self.actor,self.row(**changes),receipts]
+            response=self.client.get("/api/bookings/10/settlement",headers=self.headers)
+            self.assertEqual(response.status_code,200)
+            self.assertEqual(response.json["status"],status)
+            self.assertEqual(response.json["paidAmount"],paid)
+            self.assertEqual(response.json["remainingAmount"],0)
 
     def test_already_paid_and_cancelled_booking_cannot_be_charged(self):
         for row, receipts in ((self.row(InvoicePaidAmount=100000, InvoicePaymentStatus="PAID"), (30000, 70000, 0)),

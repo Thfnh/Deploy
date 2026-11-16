@@ -1,5 +1,17 @@
 # ============================================================
 import os
+from datetime import date, datetime, timedelta, timezone
+
+
+def vietnam_now():
+    return datetime.now(timezone(timedelta(hours=7))).replace(tzinfo=None)
+
+
+def slot_has_started(booking_date, start_time, now=None):
+    if isinstance(booking_date, str):
+        booking_date = date.fromisoformat(booking_date)
+    start = datetime.strptime(format_time(start_time), "%H:%M").time()
+    return datetime.combine(booking_date, start) <= (now if now is not None else vietnam_now())
 
 
 # AVAILABILITY SERVICE
@@ -277,10 +289,13 @@ def check_slot_available(
 def build_availability_slots(
     price_slots,
     bookings,
-    field_available=True
+    field_available=True,
+    booking_date=None,
+    now=None
 ):
 
     result = []
+    now = now if now is not None else vietnam_now()
 
 
     for slot in price_slots:
@@ -300,6 +315,10 @@ def build_availability_slots(
             available = False
 
             reason = "FIELD_UNAVAILABLE"
+
+        elif booking_date is not None and slot_has_started(booking_date, start_time, now):
+            available = False
+            reason = "PAST_TIME"
 
         else:
 

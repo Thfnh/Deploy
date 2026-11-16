@@ -11,6 +11,8 @@ from typing import Any
 
 from database import get_connection
 from services.payment_service import PaymentError
+from services.business_time import business_now
+from services.cancellation_service import _datetime_of_booking
 
 
 def _money(value: Any) -> Decimal:
@@ -74,6 +76,10 @@ def _booking(
             B.UserID,
             B.TotalAmount,
             B.Status,
+            B.BookingDate,
+            B.StartTime,
+            COALESCE(R.Amount,0) AS RefundedAmount,
+            Attendance.EventType AS AttendanceState,
 
             I.InvoiceID,
             I.Amount AS InvoiceAmount,
@@ -84,6 +90,9 @@ def _booking(
 
         LEFT JOIN Invoices I
             ON I.BookingID = B.BookingID
+        LEFT JOIN dbo.BookingDepositRefunds R ON R.BookingID=B.BookingID
+        OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                     WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
 
         WHERE B.BookingID = ?
         """,
@@ -190,9 +199,23 @@ def _summary(cursor: Any, row: Any) -> dict[str, Any]:
                 "INVOICE_MISMATCH"
             )
 
-    remaining = total - paid
+    gross_paid = paid
+    refunded = _money(getattr(row, "RefundedAmount", 0))
+    if refunded < 0 or refunded > paid:
+        raise PaymentError("Số tiền hoàn không hợp lệ", 409, "PAYMENT_MISMATCH")
+    paid -= refunded
+    cancelled = str(row.Status or "").upper() == "CANCELLED"
+    remaining = Decimal("0") if cancelled else total - paid
 
-    if remaining == 0:
+    if getattr(row, "AttendanceState", None) == "NO_SHOW" and paid <= deposit:
+        status = "RETAINED_DEPOSIT"
+    elif cancelled and refunded > 0 and paid == 0:
+        status = "REFUNDED"
+    elif cancelled and paid > 0:
+        status = "REFUND_PENDING"
+    elif cancelled and paid == 0 and total > 0:
+        status = "UNPAID"
+    elif remaining == 0:
         status = "PAID"
     elif paid > 0:
         status = "PARTIALLY_PAID"
@@ -214,6 +237,8 @@ def _summary(cursor: Any, row: Any) -> dict[str, Any]:
         "extraAmount": float(extra),
         "finalPaymentAmount": float(final_payment),
         "paidAmount": float(paid),
+        "grossPaidAmount": float(gross_paid),
+        "refundedAmount": float(refunded),
         "remainingAmount": float(remaining),
         "status": status,
         "paymentMethod": (
@@ -258,10 +283,12 @@ def get_settlement(
 
         info = _summary(cursor, row)
 
+        started = business_now().replace(tzinfo=None) >= _datetime_of_booking(row.BookingDate, row.StartTime)
+        info["confirmAvailableAt"] = _datetime_of_booking(row.BookingDate, row.StartTime).isoformat() + "+07:00"
         info["canConfirm"] = (
             role == "ADMIN"
-            and info["bookingStatus"] == "COMPLETED"
-            and info["depositAmount"] > 0
+            and started
+            and info["bookingStatus"] in {"CONFIRMED", "COMPLETED"}
             and info["remainingAmount"] > 0
             and info["finalPaymentAmount"] == 0
             and str(
@@ -303,21 +330,17 @@ def confirm_final_cash_payment(
             lock=True
         )
 
-        if str(row.Status or "").upper() != "COMPLETED":
+        if str(row.Status or "").upper() not in {"CONFIRMED", "COMPLETED"}:
             raise PaymentError(
-                "Booking chưa hoàn thành",
+                "Chỉ thu tiền cho đơn đã xác nhận hoặc đã kết thúc",
                 409,
                 "BOOKING_NOT_COMPLETED"
             )
 
-        info = _summary(cursor, row)
+        if business_now().replace(tzinfo=None) < _datetime_of_booking(row.BookingDate, row.StartTime):
+            raise PaymentError("Chỉ xác nhận thu đủ từ giờ bắt đầu đá",409,"BOOKING_NOT_STARTED")
 
-        if info["depositAmount"] <= 0:
-            raise PaymentError(
-                "Booking chưa đặt cọc thành công",
-                409,
-                "DEPOSIT_REQUIRED"
-            )
+        info = _summary(cursor, row)
 
         if (
             info["remainingAmount"] <= 0
@@ -406,6 +429,10 @@ def confirm_final_cash_payment(
         )
 
         payment_id = int(cursor.fetchone()[0])
+
+        # A full venue payment must not leave an old unpaid deposit QR active.
+        cursor.execute("""UPDATE Payments SET Status='EXPIRED',UpdatedAt=GETDATE()
+                          WHERE BookingID=? AND PaymentType='DEPOSIT' AND Status='PENDING'""", booking_id)
 
         cursor.execute(
             """

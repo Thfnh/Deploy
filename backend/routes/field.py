@@ -632,7 +632,8 @@ def get_field_availability(
             build_availability_slots(
                 price_slots,
                 bookings,
-                field_available
+                field_available,
+                booking_date=booking_date
             )
         )
 
@@ -1085,7 +1086,8 @@ def get_all_fields_availability():
                 build_availability_slots(
                     price_slots,
                     bookings,
-                    field_available
+                    field_available,
+                    booking_date=booking_date
                 )
             )
 

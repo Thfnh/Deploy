@@ -9,6 +9,47 @@ servers:
     description: "Local Server"
 
 paths:
+  /api/time:
+    get:
+      summary: Giờ máy chủ, không phụ thuộc đồng hồ thiết bị
+      responses:
+        '200':
+          description: serverTimeMs (Unix milliseconds), serverTime (ISO có timezone), timeZone=Asia/Ho_Chi_Minh; Cache-Control no-store
+  /api/admin/bookings/{bookingId}/operations/{action}:
+    post:
+      tags: [Booking operations]
+      summary: ADMIN ACTIVE ghi nhận khách đến, không đến hoặc đính chính hủy
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - {name: bookingId, in: path, required: true, schema: {type: integer}}
+        - name: action
+          in: path
+          required: true
+          schema: {type: string, enum: [check-in, no-show, restore-cancellation, approve-rejected-cancellation]}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties: {reason: {type: string, maxLength: 500}}
+      responses:
+        '200': {description: Đã cập nhật và lưu snapshot lịch sử trong cùng transaction}
+        '400': {description: Thiếu lý do hoặc dữ liệu không hợp lệ}
+        '401': {description: Thiếu hoặc sai JWT}
+        '403': {description: Không phải ADMIN ACTIVE}
+        '409': {description: Trùng lịch, đã hoàn tiền, sai thời điểm hoặc không phù hợp trạng thái}
+  /api/bookings/{bookingId}/operations:
+    get:
+      tags: [Booking operations]
+      summary: Lịch sử thao tác của đơn; ADMIN hoặc CUSTOMER sở hữu đơn
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - {name: bookingId, in: path, required: true, schema: {type: integer}}
+      responses:
+        '200': {description: Danh sách events; snapshot chi tiết chỉ dành cho ADMIN}
+        '403': {description: Không đủ quyền}
+        '404': {description: Không có đơn hoặc không sở hữu đơn}
   /api/admin/reports/summary:
     get:
       tags: [UC16 - Reports]

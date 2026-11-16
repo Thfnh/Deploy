@@ -10,7 +10,8 @@ Requires migration 003_booking_cancellations.sql.
 
 from __future__ import annotations
 
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
+from services.business_time import database_iso
 import base64
 import binascii
 from decimal import Decimal
@@ -76,8 +77,11 @@ def confirm_deposit_refund(user_id, booking_id, proof=None):
         cursor.execute("SELECT Amount FROM dbo.BookingDepositRefunds WHERE BookingID = ?", booking_id)
         if cursor.fetchone() is not None:
             raise PaymentError("Đơn đã hoàn cọc", 409, "ALREADY_REFUNDED")
-        paid, final_paid = _payment_summary(cursor, booking_id)
-        if paid <= 0 or final_paid or _paid_invoice_exists(cursor, booking_id):
+        summary = _payment_summary(cursor, booking_id)
+        paid = getattr(summary, "total_paid", summary[0])
+        if getattr(booking, "AttendanceState", None) == "NO_SHOW":
+            paid = max(paid-summary[0], Decimal("0"))
+        if paid <= 0:
             raise PaymentError("Đơn không đủ điều kiện hoàn cọc", 409, "REFUND_NOT_ALLOWED")
         reference, data, mime, filename = _validate_refund_evidence(proof)
         cursor.execute("""INSERT INTO dbo.BookingDepositRefunds
@@ -154,10 +158,12 @@ def _get_booking(cursor: Any, booking_id: int, *, lock: bool) -> Any:
     hint = "WITH (UPDLOCK, HOLDLOCK)" if lock else ""
     cursor.execute(
         f"""
-        SELECT BookingID, UserID, FieldID, BookingDate,
-               StartTime, EndTime, TotalAmount, Status
-        FROM Bookings {hint}
-        WHERE BookingID = ?
+        SELECT B.BookingID, B.UserID, B.FieldID, B.BookingDate,
+               B.StartTime, B.EndTime, B.TotalAmount, B.Status, Attendance.EventType AS AttendanceState
+        FROM Bookings B {hint}
+        OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                     WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
+        WHERE B.BookingID = ?
         """,
         booking_id,
     )
@@ -173,6 +179,13 @@ def _check_ownership(role: str, user_id: int, booking: Any) -> None:
         raise PaymentError("Không tìm thấy booking", 404, "BOOKING_NOT_FOUND")
 
 
+class PaymentSummary(tuple):
+    def __new__(cls, deposit, final_paid, total_paid):
+        result = super().__new__(cls, (deposit, final_paid))
+        result.total_paid = total_paid
+        return result
+
+
 def _payment_summary(cursor: Any, booking_id: int) -> tuple[Decimal, bool]:
     cursor.execute(
         """
@@ -182,14 +195,20 @@ def _payment_summary(cursor: Any, booking_id: int) -> tuple[Decimal, bool]:
                 THEN Amount ELSE 0 END), 0) AS DepositPaid,
             COALESCE(MAX(CASE
                 WHEN PaymentType = 'FINAL_PAYMENT' AND Status = 'SUCCESS'
-                THEN 1 ELSE 0 END), 0) AS FinalPaid
+                THEN 1 ELSE 0 END), 0) AS FinalPaid,
+            COALESCE(SUM(CASE WHEN Status='SUCCESS' AND Amount>0 AND PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA') THEN Amount ELSE 0 END),0) AS TotalCollected,
+            COALESCE(MAX(CASE WHEN Status='SUCCESS' AND Amount<0 AND PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA') THEN 1 ELSE 0 END),0) AS InvalidAmount
         FROM Payments
         WHERE BookingID = ?
         """,
         booking_id,
     )
     row = cursor.fetchone()
-    return Decimal(str(row[0] or 0)), bool(row[1])
+    deposit = Decimal(str(row[0] or 0))
+    total = Decimal(str(row[2] or 0)) if len(row)>2 else deposit
+    if deposit < 0 or total < deposit or (len(row)>3 and row[3]):
+        raise PaymentError("Dữ liệu khoản thu không hợp lệ, cần đối soát trước khi hủy/hoàn tiền",409,"PAYMENT_MISMATCH")
+    return PaymentSummary(deposit, bool(row[1]), total)
 
 
 def _paid_invoice_exists(cursor: Any, booking_id: int) -> bool:
@@ -226,16 +245,9 @@ def _rule_violation(
     if status not in CANCELLABLE_STATUSES:
         return "INVALID_BOOKING_STATUS", "Trạng thái booking không cho phép hủy"
 
-    if final_paid:
-        return (
-            "FINAL_PAYMENT_EXISTS",
-            "Booking đã có thanh toán cuối hoặc hóa đơn PAID",
-        )
-
-    # No minimum-hour cancellation policy has been approved.
-    # CUSTOMER may cancel only before the booked start.
+    # CUSTOMER must submit strictly more than two hours before the booked start.
     # ADMIN may cancel a still-open booking.
-    if role == "CUSTOMER":
+    if role in {"CUSTOMER", "ADMIN"}:
         starts_at = _datetime_of_booking(
             booking.BookingDate,
             booking.StartTime,
@@ -246,12 +258,17 @@ def _rule_violation(
                 "BOOKING_ALREADY_STARTED",
                 "Đã đến giờ đá, vui lòng liên hệ chủ sân để xử lý",
             )
+        if role == "CUSTOMER" and database_now >= starts_at - timedelta(hours=2):
+            return (
+                "CANCELLATION_DEADLINE_PASSED",
+                "Đã hết hạn hủy sân. Yêu cầu hủy phải được gửi trước giờ bắt đầu ít nhất 2 tiếng.",
+            )
 
     return None
 
 
 def _booking_now(cursor: Any) -> datetime:
-    cursor.execute("SELECT GETDATE()")
+    cursor.execute("SELECT DATEADD(HOUR, 7, SYSUTCDATETIME())")
     return cursor.fetchone()[0]
 
 
@@ -277,11 +294,7 @@ def _cancellation_audit(
 
     return {
         "reason": row.Reason,
-        "canceledAt": (
-            row.CanceledAt.isoformat(timespec="seconds")
-            if isinstance(row.CanceledAt, datetime)
-            else str(row.CanceledAt)
-        ),
+        "canceledAt": database_iso(row.CanceledAt),
         "canceledByRole": row.CanceledByRole,
         "canceledByUserId": row.CanceledByUserID,
         "canceledByName": row.CanceledByName,
@@ -307,7 +320,11 @@ def get_cancellation_info(
 
         _check_ownership(role, user_id, booking)
 
-        paid, final_paid = _payment_summary(cursor, booking_id)
+        summary = _payment_summary(cursor, booking_id)
+        paid, final_paid = summary
+        refundable = getattr(summary, "total_paid", paid)
+        if getattr(booking, "AttendanceState", None) == "NO_SHOW":
+            refundable = max(refundable-paid, Decimal("0"))
 
         finalized = final_paid or _paid_invoice_exists(
             cursor,
@@ -331,7 +348,7 @@ def get_cancellation_info(
         refund = cursor.fetchone()
         return {
             "refundedAmount": float(refund.Amount) if refund else 0,
-            "refundedAt": str(refund.ConfirmedAt) if refund else None,
+            "refundedAt": database_iso(refund.ConfirmedAt) if refund else None,
             "refundTransactionReference": refund.TransactionReference if refund else None,
             "hasRefundEvidence": bool(refund.HasEvidence) if refund else False,
             "refundEvidenceFileName": refund.EvidenceFileName if refund else None,
@@ -345,10 +362,11 @@ def get_cancellation_info(
                 else "Có thể hủy booking này"
             ),
             "depositPaid": float(paid),
+            "refundableAmount": float(refundable),
             "refundStatus": (
-                "REFUNDED" if refund else (audit["refundStatus"] if audit else _refund_status(paid))
+                "REFUNDED" if refund else (audit["refundStatus"] if audit else _refund_status(refundable))
             ),
-            "refundNote": "Chủ sân đã hoàn tiền cọc cho bạn." if refund else REFUND_NOTE,
+            "refundNote": "Chủ sân đã hoàn tiền cho bạn." if refund else REFUND_NOTE,
             "cancellation": audit,
         }
 
@@ -414,10 +432,9 @@ def cancel_booking(
         if cursor.fetchone():
             raise PaymentError("Booking có yêu cầu chờ duyệt", 409, "REQUEST_PENDING")
 
-        deposit_paid, final_paid = _payment_summary(
-            cursor,
-            booking_id,
-        )
+        summary = _payment_summary(cursor, booking_id)
+        deposit_paid, final_paid = summary
+        refundable = getattr(summary, "total_paid", deposit_paid)
 
         finalized = final_paid or _paid_invoice_exists(
             cursor,
@@ -469,31 +486,8 @@ def cancel_booking(
 
         refund = _refund_status(deposit_paid)
 
-        cursor.execute(
-            """
-            INSERT INTO BookingCancellations
-                (
-                    BookingID,
-                    CanceledByUserID,
-                    CanceledByRole,
-                    Reason,
-                    DepositPaid,
-                    RefundStatus
-                )
-            OUTPUT
-                INSERTED.CancellationID,
-                INSERTED.CanceledAt
-            VALUES (?, ?, ?, ?, ?, ?)
-            """,
-            booking_id,
-            user_id,
-            role,
-            reason or None,
-            deposit_paid,
-            refund,
-        )
-
-        saved = cursor.fetchone()
+        from services.booking_operations import store_cancellation
+        saved = store_cancellation(cursor, booking_id, user_id, role, reason or None, refundable, _refund_status(refundable),deposit_paid)
 
         conn.commit()
 
@@ -512,7 +506,7 @@ def cancel_booking(
             "reason": reason or None,
             "releasedSlot": True,
             "depositPaid": float(deposit_paid),
-            "refundStatus": refund,
+            "refundStatus": _refund_status(refundable),
             "refundNote": REFUND_NOTE,
         }
 

@@ -1,3 +1,6 @@
+import useBookingClock from "../../hooks/useBookingClock";
+import BookingPaymentBadge from "../../components/BookingPaymentBadge/BookingPaymentBadge";
+import { bookingDisplayStatus } from "../../utils/bookingStatus";
 
 import { useEffect, useRef, useState } from "react";
 
@@ -32,6 +35,10 @@ import "./BookingDetail.css";
 
 
 const STATUS_META = {
+  IN_PROGRESS: "Đang đá",
+  AWAITING_ARRIVAL: "Chờ khách đến",
+  NO_SHOW: "Khách không đến",
+  ENDED: "Đã kết thúc / hết giờ",
   PENDING: "Chờ xác nhận",
   CONFIRMED: "Đã xác nhận",
   CANCELLED: "Đã hủy",
@@ -101,9 +108,8 @@ export default function BookingDetail() {
     user?.Role || ""
   ).toUpperCase();
 
-  const status = String(
-    booking?.Status || ""
-  ).toUpperCase();
+  const now = useBookingClock();
+  const status = bookingDisplayStatus(booking, now);
 
 
   // ======================================================
@@ -136,17 +142,19 @@ export default function BookingDetail() {
     }
 
     let active = true;
+    let timer;
 
     setLoading(true);
     setError("");
 
-    getCustomerBookingDetail(
+    const poll = () => getCustomerBookingDetail(
       user.UserID,
       bookingId
     )
       .then((next) => {
         if (active) {
           setBooking(next);
+          setError("");
         }
       })
       .catch((err) => {
@@ -161,11 +169,14 @@ export default function BookingDetail() {
       .finally(() => {
         if (active) {
           setLoading(false);
+          timer = window.setTimeout(poll, 10_000);
         }
       });
+    poll();
 
     return () => {
       active = false;
+      window.clearTimeout(timer);
     };
   }, [user?.UserID, bookingId, role]);
 
@@ -327,6 +338,8 @@ export default function BookingDetail() {
               </span>
             </section>
 
+            <BookingPaymentBadge booking={booking} />
+
 
             {/* BOOKING INFORMATION AND UC09 */}
 
@@ -391,6 +404,8 @@ export default function BookingDetail() {
 
             <div id="booking-cancellation-panel">
               <CancellationPanel
+                bookingDate={booking.BookingDate}
+                startTime={booking.StartTime}
                 bookingId={booking.BookingID}
                 bookingStatus={booking.Status}
                 onCancelled={refreshBooking}

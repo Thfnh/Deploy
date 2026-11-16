@@ -1,5 +1,7 @@
 import { useMemo } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import useBookingClock from "../../hooks/useBookingClock";
+import { slotHasStarted } from "../../utils/bookingTime";
 
 import "./FieldCard.css";
 
@@ -55,11 +57,13 @@ const FieldCard = ({
   availabilityLoaded = false,
   availabilityLoading = false,
   availabilityError = "",
-  hasAvailableSlot = false,
 }) => {
 
   const navigate =
     useNavigate();
+  const now = useBookingClock();
+  const isPast = slot => slot.reason === "PAST_TIME" || slotHasStarted(selectedDate, slot.StartTime ?? slot.startTime, now);
+  const allSlotsPast = slots.length > 0 && slots.every(isPast);
 
 
   const normalizedStatus =
@@ -106,10 +110,9 @@ const FieldCard = ({
 
 
   const availableSlotExists =
-    hasAvailableSlot ||
     slots.some(
       (slot) =>
-        slot.available === true
+        slot.available === true && !isPast(slot)
     );
 
 
@@ -151,7 +154,7 @@ const FieldCard = ({
 
   const handleBooking = () => {
 
-    if (!canBook) {
+    if (!canBook || !slots.some(slot => slot.available === true && !slotHasStarted(selectedDate, slot.StartTime ?? slot.startTime))) {
       return;
     }
 
@@ -323,7 +326,7 @@ const FieldCard = ({
 
                     const available =
                       slot.available ===
-                      true;
+                      true && !isPast(slot);
 
 
                     const slotKey =
@@ -380,7 +383,7 @@ const FieldCard = ({
                         <span className="field-slot-state">
                           {available
                             ? "Trống"
-                            : "Đã đặt"}
+                            : isPast(slot) ? "Đã qua giờ" : "Đã đặt"}
                         </span>
 
                       </div>
@@ -406,7 +409,7 @@ const FieldCard = ({
               ? "Chọn ngày để đặt sân"
               : canBook
                 ? "Đặt sân"
-                : "Không có khung giờ trống"}
+                : allSlotsPast ? "Đã qua giờ" : "Không có khung giờ trống"}
         </button>
 
         <Link className="field-card-review-link" to={`/fields/${id}/reviews`}>Xem đánh giá của sân</Link>
