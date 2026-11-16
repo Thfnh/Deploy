@@ -71,7 +71,7 @@ paths:
     get:
       tags: [UC16 - Reports]
       summary: ADMIN ACTIVE đọc thống kê tiền thu, hoàn cọc, đặt sân và giao dịch
-      description: 'Khoảng ngày database-local, bao gồm cả ngày cuối, tối đa 366 ngày. Dòng tiền thuần không phải doanh thu dồn tích. Chỉ đọc; không cập nhật trạng thái nghiệp vụ. Xem docs/UC16-statistics-reports.md để đối chiếu công thức.'
+      description: 'Khoảng ngày đá BookingDate, bao gồm cả ngày cuối, tối đa 366 ngày. Tiền cọc, tiền thu tại sân và khoản hoàn đã xác nhận được phân bổ vào ngày đá của đơn tương ứng; chỉ cộng giao dịch thành công. Chỉ đọc; không cập nhật trạng thái nghiệp vụ.'
       security: [{ BearerAuth: [] }]
       parameters:
         - name: from
@@ -2169,13 +2169,28 @@ components:
         to: { type: string, format: date }
         dayCount: { type: integer, minimum: 1, maximum: 366 }
         currency: { type: string, enum: [VND] }
-        dateBasis: { type: string, enum: [database-local] }
-        revenueBasis: { type: string, enum: [cash-receipts-minus-confirmed-refunds] }
+        dateBasis: { type: string, enum: [booking-date] }
+        revenueBasis: { type: string, enum: [booking-receipts-minus-confirmed-refunds] }
         utilizationBasis: { type: string, enum: [confirmed-completed-union-over-24h-per-day] }
-        grossRevenue: { type: number, minimum: 0, description: 'SUCCESS Amount>0 DEPOSIT/FINAL_PAYMENT/EXTRA theo COALESCE(PaymentDate,UpdatedAt,CreatedAt).' }
-        refundedAmount: { type: number, minimum: 0, description: 'BookingDepositRefunds.Amount theo ConfirmedAt.' }
+        grossRevenue: { type: number, minimum: 0, description: 'Tổng tiền thành công theo BookingDate; bằng depositAmount + venueCollectedAmount. Giữ trường cũ để tương thích.' }
+        depositAmount: { type: number, minimum: 0, description: 'DEPOSIT SUCCESS dương của các đơn theo ngày đá.' }
+        venueCollectedAmount: { type: number, minimum: 0, description: 'FINAL_PAYMENT/EXTRA SUCCESS dương theo ngày đá; không gồm DEPOSIT.' }
+        refundedAmount: { type: number, minimum: 0, description: 'Khoản hoàn đã xác nhận của các đơn theo BookingDate.' }
         revenue: { type: number, description: 'grossRevenue - refundedAmount; có thể âm.' }
         bookingCount: { type: integer, minimum: 0, description: 'Chỉ COMPLETED với TotalAmount không null, không âm và khoản thu SUCCESS hợp lệ trừ hoàn cọc đủ TotalAmount; lọc theo BookingDate, xét toàn bộ lịch sử thu/hoàn.' }
+        bookingLifecycleBreakdown:
+          type: object
+          description: Nhóm trạng thái như bookingDisplayStatus trên trang Quản lý đặt sân; giờ Việt Nam, tách NO_SHOW khỏi CANCELLED. total bằng tổng mọi nhóm.
+          properties:
+            pending: {type: integer, minimum: 0}
+            confirmed: {type: integer, minimum: 0}
+            in_progress: {type: integer, minimum: 0}
+            ended: {type: integer, minimum: 0}
+            no_show: {type: integer, minimum: 0}
+            cancelled: {type: integer, minimum: 0}
+            completed: {type: integer, minimum: 0}
+            unknown: {type: integer, minimum: 0}
+            total: {type: integer, minimum: 0}
         bookingStatusCount:
           type: object
           additionalProperties: { type: integer, minimum: 0 }
@@ -2219,6 +2234,8 @@ components:
             properties:
               date: { type: string, format: date }
               grossRevenue: { type: number }
+              depositAmount: { type: number, minimum: 0 }
+              venueCollectedAmount: { type: number, minimum: 0 }
               refundedAmount: { type: number }
               revenue: { type: number }
     UC12Invoice:
