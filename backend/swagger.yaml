@@ -1492,6 +1492,31 @@ paths:
   # 4. BOOKING ENDPOINTS
   # ------------------------------------
   /api/bookings/:
+    get:
+      tags: [Booking]
+      summary: ADMIN/STAFF lấy danh sách booking, hỗ trợ phạm vi BookingDate
+      description: from và to phải cùng có hoặc cùng bỏ; tính bao gồm hai ngày. Không truyền ngày giữ hợp đồng toàn lịch sử. KPI trên giao diện chỉ theo phạm vi ngày; search/status lọc thêm danh sách.
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: from
+          in: query
+          description: YYYY-MM-DD, năm 1900–9998; bắt buộc đi cùng to
+          schema: {type: string, format: date}
+        - name: to
+          in: query
+          description: YYYY-MM-DD, không trước from, bao gồm cả ngày cuối
+          schema: {type: string, format: date}
+        - name: status
+          in: query
+          schema: {type: string, enum: [PENDING, CONFIRMED, COMPLETED, CANCELLED]}
+        - name: search
+          in: query
+          schema: {type: string}
+      responses:
+        '200': {description: Total và Bookings trong phạm vi được chọn; không truyền ngày trả toàn bộ như trước}
+        '400': {description: Thiếu hoặc sai phạm vi ngày/trạng thái}
+        '401': {description: Thiếu hoặc sai JWT}
+        '403': {description: Không phải ADMIN/STAFF đang hoạt động}
     post:
       tags:
         - Booking
