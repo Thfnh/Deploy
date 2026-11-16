@@ -9,6 +9,23 @@ servers:
     description: "Local Server"
 
 paths:
+  /api/management/dashboard/schedule:
+    get:
+      tags: [Dashboard]
+      summary: Lịch đặt sân theo ngày dành cho ADMIN và STAFF đang hoạt động
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: date
+          in: query
+          description: YYYY-MM-DD, mặc định ngày hiện tại tại Việt Nam
+          schema: {type: string, format: date}
+      responses:
+        '200':
+          description: Chỉ đọc; date, total (mọi trạng thái), items (tối đa 7 đơn theo giờ bắt đầu); Cache-Control no-store
+        '400': {description: Ngày không hợp lệ}
+        '401': {description: Thiếu hoặc sai JWT}
+        '403': {description: Không phải ADMIN hoặc STAFF đang hoạt động}
+        '503': {description: Không tải được lịch đặt sân}
   /api/time:
     get:
       summary: Giờ máy chủ, không phụ thuộc đồng hồ thiết bị
