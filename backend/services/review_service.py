@@ -1,4 +1,4 @@
-"""UC10: one review per completed booking, independently of payment balance."""
+"""UC10: one review per owned booking after its end and full settlement."""
 from datetime import timezone
 
 import pyodbc
@@ -6,6 +6,7 @@ import pyodbc
 from database import get_connection
 from services.payment_service import PaymentError
 from services.review_reply_service import replies_for
+from services.booking_completion import BOOKING_END_SQL, completion_sql, is_booking_completed
 
 
 MAX_COMMENT_LENGTH = 1000
@@ -51,7 +52,21 @@ def _customer(cursor, user_id):
 
 def _booking(cursor, user_id, booking_id, lock=False):
     hint = "WITH (UPDLOCK,HOLDLOCK)" if lock else ""
-    cursor.execute(f"SELECT BookingID,UserID,FieldID,Status FROM dbo.Bookings {hint} WHERE BookingID=?", booking_id)
+    cursor.execute(f"""
+        SELECT B.BookingID,B.UserID,B.FieldID,B.Status,B.BookingDate,B.EndTime,B.TotalAmount,
+            COALESCE(P.Paid,0) AS TotalPaidAmount,COALESCE(R.Refunded,0) AS RefundedAmount,
+            Attendance.EventType AS AttendanceState
+        FROM dbo.Bookings B {hint}
+        OUTER APPLY (SELECT SUM(Amount) AS Paid FROM dbo.Payments
+            WHERE BookingID=B.BookingID AND Status='SUCCESS' AND Amount>0
+            AND PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA')) P
+        OUTER APPLY (SELECT SUM(Amount) AS Refunded FROM dbo.BookingDepositRefunds
+            WHERE BookingID=B.BookingID AND Amount>0) R
+        OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+            WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED')
+            ORDER BY EventID DESC) Attendance
+        WHERE B.BookingID=?
+    """, booking_id)
     row = cursor.fetchone()
     if row is None:
         raise PaymentError("Không tìm thấy đơn đặt sân", 404, "BOOKING_NOT_FOUND")
@@ -84,7 +99,7 @@ def create_review(user_id, booking_id, payload):
         cursor.execute("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE")
         _customer(cursor, user_id)
         booking = _booking(cursor, user_id, booking_id, lock=True)
-        if str(booking.Status).strip().upper() != "COMPLETED":
+        if not is_booking_completed(booking):
             raise PaymentError("Chỉ được đánh giá đơn đã hoàn thành", 409, "BOOKING_NOT_COMPLETED")
         if _existing(cursor, booking_id) is not None:
             raise PaymentError("Đơn này đã được đánh giá", 409, "REVIEW_ALREADY_EXISTS")
@@ -117,7 +132,7 @@ def get_booking_review(user_id, booking_id):
         _customer(cursor, user_id)
         booking = _booking(cursor, user_id, booking_id)
         row = _existing(cursor, booking_id)
-        completed = str(booking.Status).strip().upper() == "COMPLETED"
+        completed = is_booking_completed(booking)
         review = _serialize(row) if row is not None else None
         if review is not None:
             review["reply"] = replies_for(cursor,[review["reviewId"]]).get(review["reviewId"])
@@ -140,9 +155,18 @@ def list_field_reviews(field_id, page, page_size):
         field = cursor.fetchone()
         if field is None:
             raise PaymentError("Không tìm thấy sân bóng", 404, "FIELD_NOT_FOUND")
+        predicate = completion_sql("B.Status", "B.TotalAmount", "COALESCE(P.Paid,0)-COALESCE(F.Refunded,0)", BOOKING_END_SQL, "Attendance.EventType")
         eligible = """FROM dbo.BookingReviews R JOIN dbo.Bookings B ON B.BookingID=R.BookingID
             AND B.UserID=R.UserID AND B.FieldID=R.FieldID
-            WHERE R.FieldID=? AND B.Status='COMPLETED'"""
+            OUTER APPLY (SELECT SUM(Amount) AS Paid FROM dbo.Payments
+                WHERE BookingID=B.BookingID AND Status='SUCCESS' AND Amount>0
+                AND PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA')) P
+            OUTER APPLY (SELECT SUM(Amount) AS Refunded FROM dbo.BookingDepositRefunds
+                WHERE BookingID=B.BookingID AND Amount>0) F
+            OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+                WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED')
+                ORDER BY EventID DESC) Attendance
+            WHERE R.FieldID=? AND """ + predicate
         cursor.execute("SELECT COUNT(*),AVG(CAST(R.Rating AS DECIMAL(8,2))) " + eligible, field_id)
         count, average = cursor.fetchone()
         cursor.execute("""SELECT R.ReviewID,R.Rating,R.Comment,R.CreatedAt """ + eligible + """
