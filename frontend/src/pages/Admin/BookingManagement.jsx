@@ -2,7 +2,7 @@ import BookingPaymentBadge from "../../components/BookingPaymentBadge/BookingPay
 import BookingOperationsPanel from "../../components/BookingOperationsPanel/BookingOperationsPanel";
 import { formatBusinessTime } from "../../utils/businessClock";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Link, useOutletContext, useLocation } from "react-router-dom";
 import { Check, Eye, RefreshCw, X } from "lucide-react";
 
@@ -267,7 +267,7 @@ export default function BookingManagement() {
   // VIEW BOOKING DETAIL
   // ======================================================
 
-  const viewBooking = async (bookingId) => {
+  const viewBooking = useCallback(async (bookingId) => {
     setDetailLoading(true);
 
     try {
@@ -293,7 +293,14 @@ export default function BookingManagement() {
     } finally {
       setDetailLoading(false);
     }
-  };
+  }, [isAdmin]);
+
+  useEffect(() => {
+    const value = new URLSearchParams(location.search).get("bookingId");
+    if (!value || !/^[1-9]\d{0,9}$/.test(value)) return;
+    const bookingId = Number(value);
+    if (bookingId <= 2147483647) void viewBooking(bookingId);
+  }, [location.search, viewBooking]);
 
 
   // ======================================================

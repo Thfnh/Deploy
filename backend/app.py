@@ -29,6 +29,7 @@ from routes.review import review_bp
 from routes.admin_review import admin_review_bp
 from routes.admin_customer import admin_customer_bp
 from routes.admin_report import admin_report_bp
+from routes.dashboard import dashboard_bp
 from routes.business_time import business_time_bp
 from routes.booking_operations import booking_operations_bp
 
@@ -43,6 +44,7 @@ app.register_blueprint(review_bp, url_prefix="/api")
 app.register_blueprint(admin_review_bp, url_prefix="/api/admin")
 app.register_blueprint(admin_customer_bp, url_prefix="/api/admin")
 app.register_blueprint(admin_report_bp, url_prefix="/api/admin")
+app.register_blueprint(dashboard_bp, url_prefix="/api")
 app.register_blueprint(invoice_bp, url_prefix="/api")
 app.register_blueprint(admin_invoice_bp, url_prefix="/api")
 

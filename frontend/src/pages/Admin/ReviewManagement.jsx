@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import useReviewInbox from "../../hooks/useReviewInbox";
 import { saveReviewReply } from "../../services/review_service";
 import ReviewReply from "../../components/ReviewPanel/ReviewReply";
@@ -6,14 +7,20 @@ import "../../components/ReviewPanel/Reviews.css";
 import "./ReviewManagement.css";
 
 export default function ReviewManagement() {
+  const location = useLocation();
   const [page, setPage] = useState(1);
-  const [status, setStatus] = useState("all");
+  const [status, setStatus] = useState(() => new URLSearchParams(location.search).get("status") === "unanswered" ? "unanswered" : "all");
   const [rating, setRating] = useState("");
   const [drafts, setDrafts] = useState({});
   const [saving, setSaving] = useState(null);
   const [notice, setNotice] = useState("");
   const [saveError, setSaveError] = useState("");
   const { data, error, loading, updatedAt, refresh } = useReviewInbox({ page, status, rating });
+  useEffect(() => {
+    if (/^#review-[1-9]\d*$/.test(location.hash)) {
+      document.getElementById(location.hash.slice(1))?.scrollIntoView({ block: "center" });
+    }
+  }, [data, location.hash]);
   const submit = async (event, review) => {
     event.preventDefault();
     const comment = (drafts[review.reviewId] ?? review.reply?.comment ?? "").trim();
@@ -43,7 +50,7 @@ export default function ReviewManagement() {
     {loading && <p role="status">Đang tải đánh giá…</p>}
     {!loading && data?.items.length === 0 && <div className="uc10-panel"><p>Chưa có đánh giá phù hợp với bộ lọc.</p>
       {page > 1 && <button className="uc10-button secondary" onClick={() => setPage(1)}>Về trang đầu</button>}</div>}
-    {data?.items.map(review => <article className="uc10-panel uc10-admin-review" key={review.reviewId}>
+    {data?.items.map(review => <article className="uc10-panel uc10-admin-review" key={review.reviewId} id={`review-${review.reviewId}`}>
       <header><div><span className="uc10-eyebrow">{review.fieldName} · Đơn #{review.bookingId}</span><h2>{review.customerName || "Khách hàng"}</h2></div>
         <span className={`uc10-reply-status ${review.reply ? "answered" : ""}`}>{review.reply ? "Đã phản hồi" : "Chờ phản hồi"}</span></header>
       <p className="uc10-stars-display" aria-label={`${review.rating} trên 5 sao`}>{"★".repeat(review.rating)}<span>{"☆".repeat(5-review.rating)}</span></p>
