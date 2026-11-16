@@ -112,7 +112,7 @@ export default function ReportManagement() {
             <td><div className="uc16-utilization"><meter min="0" max="100" value={field.utilizationPercent}>{field.utilizationPercent}%</meter><strong>{number(field.utilizationPercent)}%</strong></div></td>
           </tr>)}</tbody></table></div>}
       </section>
-      <aside className="uc16-notes"><strong>Cách đọc báo cáo</strong><p>Số đơn hoàn thành chỉ tính đơn COMPLETED đã thu đủ tiền. Tiền đã thu bao gồm cọc, thanh toán cuối và khoản thu thêm thành công của tất cả đơn trong phạm vi, kể cả cọc giữ lại khi khách không đến; không cộng lại giá trị hóa đơn. Khoản hoàn đã xác nhận được trừ vào ngày đá của đơn tương ứng.</p>
+      <aside className="uc16-notes"><strong>Cách đọc báo cáo</strong><p>Đơn hoàn thành là đơn đã hết giờ và thu đủ tiền, không bị hủy hoặc đánh dấu không đến. Tiền đã thu bao gồm cọc, thanh toán cuối và khoản thu thêm thành công của tất cả đơn trong phạm vi, kể cả cọc giữ lại khi khách không đến; không cộng lại giá trị hóa đơn. Khoản hoàn đã xác nhận được trừ vào ngày đá của đơn tương ứng.</p>
         <p>Tiền cọc, tiền thu tại sân và khoản hoàn được tổng hợp theo ngày diễn ra trận (BookingDate), không theo ngày giao dịch. Chỉ cộng tiền đã thanh toán thành công. Bấm Làm mới để cập nhật số liệu.</p></aside>
     </>}
   </section>;

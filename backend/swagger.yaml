@@ -272,7 +272,7 @@ paths:
         '503': { description: DB không sẵn sàng hoặc chưa áp dụng migration 011 }
     post:
       tags: [UC10 - Reviews]
-      summary: CUSTOMER đánh giá một lần cho booking COMPLETED của mình
+      summary: CUSTOMER đánh giá một lần cho đơn của mình đã hết giờ và thu đủ tiền
       description: 'Không yêu cầu hóa đơn PAID. rating phải là JSON integer 1..5, không nhận bool/string/float. comment trim còn 1..1000 đơn vị UTF-16. UserID và FieldID lấy từ booking trên server, không từ body. Không sửa Booking, Payment hoặc Invoice.'
       security: [{ BearerAuth: [] }]
       requestBody:
@@ -2177,7 +2177,7 @@ components:
         venueCollectedAmount: { type: number, minimum: 0, description: 'FINAL_PAYMENT/EXTRA SUCCESS dương theo ngày đá; không gồm DEPOSIT.' }
         refundedAmount: { type: number, minimum: 0, description: 'Khoản hoàn đã xác nhận của các đơn theo BookingDate.' }
         revenue: { type: number, description: 'grossRevenue - refundedAmount; có thể âm.' }
-        bookingCount: { type: integer, minimum: 0, description: 'Chỉ COMPLETED với TotalAmount không null, không âm và khoản thu SUCCESS hợp lệ trừ hoàn cọc đủ TotalAmount; lọc theo BookingDate, xét toàn bộ lịch sử thu/hoàn.' }
+        bookingCount: { type: integer, minimum: 0, description: 'Đơn CONFIRMED/COMPLETED đã hết giờ và thu đủ sau hoàn, không NO_SHOW; lọc theo BookingDate, xét toàn bộ lịch sử thu/hoàn.' }
         bookingLifecycleBreakdown:
           type: object
           description: Nhóm trạng thái như bookingDisplayStatus trên trang Quản lý đặt sân; giờ Việt Nam, tách NO_SHOW khỏi CANCELLED. total bằng tổng mọi nhóm.
@@ -2199,11 +2199,11 @@ components:
           description: 'Cùng BookingDate và toàn bộ lịch sử thu/hoàn. Mỗi đơn thuộc đúng một nhóm cụ thể; cộng tất cả các nhóm bằng total. Ưu tiên đơn đã hủy trước phân loại thu tiền.'
           required: [completedPaid, deposited, cancelled, unpaid, paidAwaitingCompletion, partiallyPaid, refunded, invalidAmount, invalidStatus, invalidBalance, total]
           properties:
-            completedPaid: { type: integer, minimum: 0, description: 'Bằng bookingCount: COMPLETED và thu đủ tổng tiền.' }
+            completedPaid: { type: integer, minimum: 0, description: 'Bằng bookingCount: đã hết giờ và thu đủ tổng tiền, không hủy hoặc NO_SHOW.' }
             deposited: { type: integer, minimum: 0, description: 'PENDING/CONFIRMED/COMPLETED, còn tiền cọc SUCCESS sau hoàn, NetPaid > 0 nhưng chưa đủ TotalAmount.' }
             cancelled: { type: integer, minimum: 0, description: 'CANCELLED/CANCELED, bao gồm đơn đã hoàn cọc.' }
             unpaid: { type: integer, minimum: 0, description: 'Chưa thu tiền, không có khoản hoàn; tổng tiền dương.' }
-            paidAwaitingCompletion: { type: integer, minimum: 0, description: 'Thu đủ nhưng chưa COMPLETED, bao gồm đơn miễn phí được xác nhận.' }
+            paidAwaitingCompletion: { type: integer, minimum: 0, description: 'Thu đủ nhưng chưa hết giờ đá, bao gồm đơn miễn phí được xác nhận.' }
             partiallyPaid: { type: integer, minimum: 0, description: 'Thu một phần nhưng không còn khoản cọc hợp lệ.' }
             refunded: { type: integer, minimum: 0, description: 'Chưa hủy nhưng đã hoàn hết khoản thu, NetPaid=0.' }
             invalidAmount: { type: integer, minimum: 0, description: 'TotalAmount null hoặc âm.' }

@@ -24,7 +24,7 @@ try {
   const send=(method,params={})=>new Promise((resolve,reject)=>{const n=++id;pending.set(n,{resolve,reject});socket.send(JSON.stringify({id:n,method,params}));});
   const user={UserID:1,Username:'qa-reviewer',FullName:'QA Reviewer',Role:'CUSTOMER',Status:'ACTIVE'};
   const booking=(n,status)=>({BookingID:n,UserID:1,CustomerName:'QA Reviewer',FieldID:5,FieldName:'QA Field',FieldType:'7 player',Location:'QA',
-    BookingDate:'2026-11-01',StartTime:'18:00',EndTime:'19:00',TotalAmount:600000,PaidAmount:200000,RemainingAmount:400000,Status:status,PaymentStatus:'PARTIALLY_PAID'});
+    BookingDate:'2026-11-01',StartTime:'18:00',EndTime:'19:00',TotalAmount:600000,PaidAmount:600000,TotalPaidAmount:600000,RefundedAmount:0,RemainingAmount:0,Status:status,PaymentStatus:'PAID'});
   socket.onmessage=({data})=>{
     const m=JSON.parse(data);
     if(m.id){const p=pending.get(m.id);pending.delete(m.id);m.error?p?.reject(new Error(JSON.stringify(m.error))):p?.resolve(m.result);}
@@ -32,8 +32,8 @@ try {
     if(m.method==='Fetch.requestPaused'){
       const {requestId,request}=m.params;const url=new URL(request.url),p=url.pathname;let body={},status=200;
       if(p==='/api/auth/me')body={user};
-      else if(p==='/api/customer-bookings/me')body={Bookings:[booking(10,'COMPLETED'),booking(11,'PENDING')]};
-      else if(p.startsWith('/api/customer-bookings/me/'))body=booking(Number(p.split('/').at(-1)),p.endsWith('/11')?'PENDING':'COMPLETED');
+      else if(p==='/api/customer-bookings/me')body={Bookings:[booking(10,'CONFIRMED'),booking(11,'PENDING')]};
+      else if(p.startsWith('/api/customer-bookings/me/'))body=booking(Number(p.split('/').at(-1)),p.endsWith('/11')?'PENDING':'CONFIRMED');
       else if(p.endsWith('/settlement'))body={bookingId:10,bookingStatus:'COMPLETED',totalAmount:600000,depositAmount:200000,paidAmount:200000,remainingAmount:400000,status:'PARTIALLY_PAID',canConfirm:false};
       else if(p.endsWith('/cancellation'))body={canCancel:false,latestRequest:null,depositPaid:200000};
       else if(p.includes('/bookings/')&&p.endsWith('/reviews')){
@@ -71,7 +71,7 @@ try {
   await navigate('/bookings');
   await wait('document.body.textContent.includes("QA Field")');
   assert.equal(await evaluate('[...document.querySelectorAll("button")].filter(b=>b.textContent.trim()==="Đánh giá sân").length'),1);
-  checks.push('History: review action only for COMPLETED');
+  checks.push('History: ended and fully paid raw CONFIRMED booking offers a review; PENDING does not');
   await evaluate('[...document.querySelectorAll("button")].find(b=>b.textContent.trim()==="Đánh giá sân").click()');
   await wait('document.querySelector("#booking-review-panel textarea")');
   assert.equal(await evaluate('document.querySelector("#booking-review-panel button[type=submit]").disabled'),true);
@@ -120,4 +120,4 @@ try {
   assert.deepEqual(errors,[]);
   const result={passed:checks.length,scenarios:checks,note:'Intercepted API fixtures, no SQL or live customer writes.'};
   await fs.writeFile(`${output}/browser-checks.json`,JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
-}finally{socket?.close();child.kill();}
+}finally{socket?.close();child.kill();child.unref();}

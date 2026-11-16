@@ -7,6 +7,7 @@ import pyodbc
 
 from database import get_connection
 from services.payment_service import PaymentError
+from services.booking_completion import completion_sql
 
 
 MAX_DAYS = 366
@@ -106,7 +107,8 @@ def get_summary(admin_id, start, end):
             GROUP BY B.BookingDate""", start, stop)
         refunds = {str(row.Day): Decimal(row.Amount) for row in cursor.fetchall()}
 
-        cursor.execute("""WITH Balances AS (
+        completed_rule = completion_sql("Status", "TotalAmount", "NetPaid", "EndsAt", "AttendanceState")
+        cursor.execute(f"""WITH Balances AS (
             SELECT B.Status,B.TotalAmount,COALESCE(P.Paid,0)-COALESCE(R.Refunded,0) AS NetPaid,
                 COALESCE(P.Deposit,0)-COALESCE(R.Refunded,0) AS NetDeposit,COALESCE(R.Refunded,0) AS Refunded,
                 Attendance.EventType AS AttendanceState,
@@ -129,7 +131,7 @@ def get_summary(admin_id, start, end):
             WHEN TotalAmount IS NULL OR TotalAmount<0 THEN 'INVALID_AMOUNT'
             WHEN Status IS NULL OR UPPER(LTRIM(RTRIM(Status))) NOT IN ('PENDING','CONFIRMED','COMPLETED') THEN 'INVALID_STATUS'
             WHEN NetPaid<0 THEN 'INVALID_BALANCE'
-            WHEN UPPER(LTRIM(RTRIM(Status)))='COMPLETED' AND TotalAmount>=0 AND NetPaid>=TotalAmount THEN 'COMPLETED_PAID'
+            WHEN {completed_rule} THEN 'COMPLETED_PAID'
             WHEN UPPER(LTRIM(RTRIM(Status))) IN ('PENDING','CONFIRMED','COMPLETED')
                 AND TotalAmount>0 AND NetDeposit>0 AND NetPaid>0 AND NetPaid<TotalAmount THEN 'DEPOSITED'
             WHEN NetPaid>=TotalAmount THEN 'PAID_AWAITING_COMPLETION'
@@ -139,10 +141,9 @@ def get_summary(admin_id, start, end):
             CASE
                 WHEN AttendanceState='NO_SHOW' THEN 'NO_SHOW'
                 WHEN UPPER(LTRIM(RTRIM(Status))) IN ('CANCELLED','PENDING') THEN UPPER(LTRIM(RTRIM(Status)))
-                WHEN UPPER(LTRIM(RTRIM(Status)))='COMPLETED' THEN
-                    CASE WHEN TotalAmount>=0 AND NetPaid>=TotalAmount THEN 'COMPLETED' ELSE 'ENDED' END
-                WHEN UPPER(LTRIM(RTRIM(Status)))='CONFIRMED' THEN
-                    CASE WHEN EndsAt<=DATEADD(HOUR,7,SYSUTCDATETIME()) THEN 'ENDED'
+                WHEN UPPER(LTRIM(RTRIM(Status))) IN ('CONFIRMED','COMPLETED') THEN
+                    CASE WHEN {completed_rule} THEN 'COMPLETED'
+                         WHEN EndsAt<=DATEADD(HOUR,7,SYSUTCDATETIME()) THEN 'ENDED'
                          WHEN StartsAt<=DATEADD(HOUR,7,SYSUTCDATETIME()) THEN 'IN_PROGRESS'
                          ELSE 'CONFIRMED' END
                 ELSE 'UNKNOWN' END AS LifecycleCategory FROM Balances)

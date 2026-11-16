@@ -29,7 +29,9 @@ class ReviewTests(unittest.TestCase):
         self.addCleanup(replies.stop)
         self.client = app.test_client()
         self.actor = Row(Role="CUSTOMER", Status="ACTIVE")
-        self.booking = Row(BookingID=10, UserID=1, FieldID=5, Status="COMPLETED")
+        self.booking = Row(BookingID=10, UserID=1, FieldID=5, Status="COMPLETED",
+                           BookingDate="2026-11-10", EndTime="06:00", TotalAmount=100000,
+                           TotalPaidAmount=100000, RefundedAmount=0, AttendanceState=None)
         self.review = Row(ReviewID=30, BookingID=10, FieldID=5, Rating=5,
                           Comment="Sân tốt", CreatedAt=datetime(2026,11,10,4))
         self.path = "/api/bookings/10/reviews"
@@ -103,13 +105,58 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(self.post().status_code,404)
         self.conn.commit.assert_not_called()
 
-    def test_pending_confirmed_cancelled_are_ineligible(self):
-        for status in ("PENDING","CONFIRMED","CANCELLED"):
+    def test_pending_cancelled_are_ineligible(self):
+        for status in ("PENDING","CANCELLED"):
             self.cur.fetchone.side_effect=[self.actor,Row(**{**vars(self.booking),"Status":status})]
             response=self.post()
             self.assertEqual(response.status_code,409)
             self.assertEqual(response.json["code"],"BOOKING_NOT_COMPLETED")
         self.conn.commit.assert_not_called()
+
+    def test_confirmed_ended_fully_paid_booking_can_review_without_status_update(self):
+        self.booking.Status="CONFIRMED"
+        self.seed()
+        self.assertEqual(self.post().status_code,201)
+        writes=[call.args[0].lstrip().split()[0] for call in self.cur.execute.call_args_list]
+        self.assertNotIn("UPDATE",writes)
+        self.assertNotIn("DELETE",writes)
+
+    def test_confirmed_eligibility_get_is_read_only(self):
+        self.booking.Status="CONFIRMED"
+        self.cur.fetchone.side_effect=[self.actor,self.booking,None]
+        response=self.client.get(self.path,headers=self.headers())
+        self.assertEqual(response.status_code,200)
+        self.assertTrue(response.json["canReview"])
+        self.conn.commit.assert_not_called()
+        self.assertFalse(any("UPDATE " in call.args[0] or "INSERT " in call.args[0] for call in self.cur.execute.call_args_list))
+
+    def test_before_end_unpaid_refunded_and_no_show_cannot_review(self):
+        from services.business_time import VIETNAM
+        self.booking.BookingDate="2026-11-16"
+        self.booking.EndTime="13:34"
+        for changes,now in (
+            ({"Status":"CONFIRMED"},datetime(2026,11,16,13,33,59,tzinfo=VIETNAM)),
+            ({"Status":"COMPLETED"},datetime(2026,11,16,13,33,59,tzinfo=VIETNAM)),
+            ({"Status":"CONFIRMED","TotalPaidAmount":99999},datetime(2026,11,16,13,34,tzinfo=VIETNAM)),
+            ({"Status":"CONFIRMED","RefundedAmount":1},datetime(2026,11,16,13,34,tzinfo=VIETNAM)),
+            ({"Status":"CONFIRMED","AttendanceState":"NO_SHOW"},datetime(2026,11,16,13,34,tzinfo=VIETNAM)),
+        ):
+            row=Row(**{**vars(self.booking),**changes})
+            self.cur.fetchone.side_effect=[self.actor,row]
+            with patch("services.booking_completion.business_now",return_value=now):
+                response=self.post()
+            self.assertEqual(response.status_code,409)
+            self.assertEqual(response.json["code"],"BOOKING_NOT_COMPLETED")
+        self.conn.commit.assert_not_called()
+
+    def test_exact_end_boundary_allows_confirmed_paid_review(self):
+        from services.business_time import VIETNAM
+        self.booking.Status="CONFIRMED"
+        self.booking.BookingDate="2026-11-16"
+        self.booking.EndTime="13:34"
+        self.seed()
+        with patch("services.booking_completion.business_now",return_value=datetime(2026,11,16,13,34,tzinfo=VIETNAM)):
+            self.assertEqual(self.post().status_code,201)
 
     def test_duplicate_review_does_not_insert(self):
         self.seed(existing=self.review)
@@ -159,7 +206,7 @@ class ReviewTests(unittest.TestCase):
         self.assertNotIn("userId",response.json["items"][0])
         self.assertNotIn("email",response.get_data(as_text=True).lower())
         self.assertEqual(self.cur.execute.call_args.args[1:],(5,10,10))
-        self.assertIn("B.Status='COMPLETED'",self.cur.execute.call_args.args[0])
+        self.assertIn("IN ('CONFIRMED','COMPLETED')",self.cur.execute.call_args.args[0])
         self.conn.commit.assert_not_called()
 
     def test_empty_field_list(self):

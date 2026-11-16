@@ -11,12 +11,12 @@ export function bookingDisplayStatus(booking, now = Date.now()) {
   if (booking?.AttendanceState === "NO_SHOW") return "NO_SHOW";
   const status = String(booking?.Status || "").trim().toUpperCase();
   if (status === "CANCELLED" || status === "PENDING") return status;
-  if (status === "COMPLETED") return bookingBalance(booking).fullyPaid ? "COMPLETED" : "ENDED";
-  if (status === "CONFIRMED") {
+  if (status === "CONFIRMED" || status === "COMPLETED") {
     const start = Date.parse(`${booking.BookingDate}T${String(booking.StartTime || "").slice(0,5)}:00+07:00`);
     const end = Date.parse(`${booking.BookingDate}T${String(booking.EndTime || "").slice(0,5)}:00+07:00`);
-    if (Number.isFinite(end) && now >= end) return "ENDED";
+    if (Number.isFinite(end) && now >= end) return bookingBalance(booking).fullyPaid ? "COMPLETED" : "ENDED";
     if (Number.isFinite(start) && now >= start) return "IN_PROGRESS";
+    return "CONFIRMED";
   }
   return status;
 }
