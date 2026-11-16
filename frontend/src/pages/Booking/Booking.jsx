@@ -18,6 +18,8 @@ import {
 } from "react-router-dom";
 
 import Navbar from "../../components/Navbar/Navbar";
+import useBookingClock from "../../hooks/useBookingClock";
+import { slotHasStarted, vietnamDate } from "../../utils/bookingTime";
 
 import {
   getFieldAvailability,
@@ -54,24 +56,10 @@ const formatPrice = (value) => {
 };
 
 
-const getLocalDateString = () => {
-  const now = new Date();
-
-  const year = now.getFullYear();
-
-  const month = String(
-    now.getMonth() + 1
-  ).padStart(2, "0");
-
-  const day = String(
-    now.getDate()
-  ).padStart(2, "0");
-
-  return `${year}-${month}-${day}`;
-};
-
+const getLocalDateString = vietnamDate;
 
 function Booking() {
+  const now = useBookingClock();
   const navigate = useNavigate();
 
   const location = useLocation();
@@ -237,11 +225,12 @@ function Booking() {
             ),
 
           available:
-            slot.available === true,
+            slot.available === true && !slotHasStarted(selectedDate, slot.StartTime, now),
+          reason: slotHasStarted(selectedDate, slot.StartTime, now) ? "PAST_TIME" : slot.reason,
         })
       );
     },
-    [availability]
+    [availability, selectedDate, now]
   );
 
 
@@ -306,6 +295,11 @@ function Booking() {
   // =========================================================
 
   const handleContinue = () => {
+    if (selectedSlot && slotHasStarted(selectedDate, selectedSlot.StartTime)) {
+      setError("Khung giờ đã qua, vui lòng chọn giờ khác.");
+      setSelectedSlot(null);
+      return;
+    }
     if (
       !availability ||
       !selectedSlot ||
@@ -742,7 +736,7 @@ function Booking() {
                                   ? selected
                                     ? "Đã chọn"
                                     : "Trống"
-                                  : "Đã đặt"
+                                  : slot.reason === "PAST_TIME" ? "Đã qua giờ" : "Đã đặt"
                               }
 
                             </div>
@@ -813,6 +807,8 @@ function Booking() {
                 <button
                   type="button"
                   className="booking-primary-button"
+
+                  disabled={slotHasStarted(selectedDate, selectedSlot.StartTime, now)}
 
                   onClick={
                     handleContinue

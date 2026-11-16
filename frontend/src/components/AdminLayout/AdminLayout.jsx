@@ -11,6 +11,9 @@ import {
 
 import "../../pages/Admin/Admin.css";
 import useReviewInbox from "../../hooks/useReviewInbox";
+import useCancellationInbox from "../../hooks/useCancellationInbox";
+import { Bell } from "lucide-react";
+import "./CancellationNotification.css";
 
 
 const MANAGER_ROLES = [
@@ -75,6 +78,7 @@ function AdminLayout() {
       .toUpperCase();
 
   const { data: reviewInbox } = useReviewInbox({ enabled: role === "ADMIN", pageSize: 1, status: "unanswered" });
+  const cancellationInbox = useCancellationInbox(role === "ADMIN");
 
 
   if (!user) {
@@ -237,8 +241,8 @@ function AdminLayout() {
               isActive(
                 "/admin/bookings"
               )
-                ? "active"
-                : ""
+                ? "admin-bookings-nav active"
+                : "admin-bookings-nav"
             }
             onClick={
               () =>
@@ -248,6 +252,15 @@ function AdminLayout() {
             }
           >
             Quản lý đặt sân
+            {role === "ADMIN" && cancellationInbox.requests.length > 0 && (
+              <button type="button" className="admin-cancellation-notification"
+                title="Xem yêu cầu hủy chờ duyệt"
+                aria-label={`${cancellationInbox.requests.length} yêu cầu hủy chờ duyệt`}
+                onClick={event => { event.stopPropagation(); navigate("/admin/bookings#cancellation-requests"); }}>
+                <Bell size={14} aria-hidden="true" />
+                <span>{cancellationInbox.requests.length > 99 ? "99+" : cancellationInbox.requests.length}</span>
+              </button>
+            )}
           </li>
 
 
@@ -354,6 +367,7 @@ function AdminLayout() {
             user,
             role,
             isAdmin,
+            cancellationInbox,
           }}
         />
 

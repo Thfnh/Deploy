@@ -83,7 +83,7 @@ export default function ReportManagement() {
         <article className="uc16-metric featured"><span><TrendingUp size={20} />Doanh thu thuần</span><strong>{money(result.revenue)}</strong><small>Tiền đã thu trừ khoản hoàn đã xác nhận</small></article>
         <article className="uc16-metric"><span><Wallet size={20} />Tiền đã thu</span><strong>{money(result.grossRevenue)}</strong><small>Giao dịch thành công theo ngày ghi nhận thu</small></article>
         <article className="uc16-metric"><span><CalendarDays size={20} />Đơn hoàn thành</span><strong>{number(result.bookingCount)}</strong><small>Đã hoàn thành và đã thu đủ tiền · theo ngày đặt sân</small></article>
-        <article className="uc16-metric"><span><BarChart3 size={20} />Đã hoàn cọc</span><strong>{money(result.refundedAmount)}</strong><small>Theo ngày Admin xác nhận hoàn</small></article>
+        <article className="uc16-metric"><span><BarChart3 size={20} />Đã hoàn tiền</span><strong>{money(result.refundedAmount)}</strong><small>Theo ngày Admin xác nhận hoàn</small></article>
       </div>
       {result.bookingBreakdown.total === 0 && result.grossRevenue === 0 && result.refundedAmount === 0 && result.invoiceCount === 0 && result.fieldUtilization.length === 0 && <p className="uc16-empty" role="status">Không có dữ liệu phát sinh trong khoảng ngày này.</p>}
       <div className="uc16-main-grid"><section className="uc16-card"><header><div><h2>Doanh thu theo ngày</h2><p>Thuần = khoản thu thành công − khoản hoàn đã xác nhận</p></div><span className="uc16-unit">VND</span></header>

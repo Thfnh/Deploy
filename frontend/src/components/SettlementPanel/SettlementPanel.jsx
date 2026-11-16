@@ -6,6 +6,7 @@ import {
 } from "../../services/settlement_service";
 
 import "./SettlementPanel.css";
+import { businessNow } from "../../utils/businessClock";
 
 
 const money = (value) =>
@@ -56,6 +57,18 @@ export default function SettlementPanel({
       active = false;
     };
   }, [bookingId, refreshKey]);
+
+  useEffect(() => {
+    if (mode !== "admin" || !info?.confirmAvailableAt || info.canConfirm) return;
+    const remaining = Date.parse(info.confirmAvailableAt) - businessNow();
+    if (remaining <= 0) return;
+    let active = true;
+    const timer = setTimeout(() => {
+      getSettlement(bookingId).then(data => { if (active) setInfo(data); })
+        .catch(err => { if (active) setError(err.message); });
+    }, Math.min(remaining + 100, 2147483647));
+    return () => { active = false; clearTimeout(timer); };
+  }, [bookingId, mode, info]);
 
 
   // Làm mới số tiền và trạng thái.
@@ -138,9 +151,7 @@ export default function SettlementPanel({
               }`
             }
           >
-            {info.status === "PAID"
-              ? "Đã thanh toán đủ"
-              : "Chưa thanh toán đủ"}
+            {({PAID:"Đã thanh toán đủ",RETAINED_DEPOSIT:"Khách không đến · giữ cọc",REFUNDED:"Đã hoàn tiền",REFUND_PENDING:"Chờ hoàn tiền"})[info.status] || "Chưa thanh toán đủ"}
           </span>
         )}
       </div>
@@ -201,8 +212,8 @@ export default function SettlementPanel({
 
           ) : (
             <p className="settlement-help">
-              Chỉ xác nhận sau khi khách đã đá xong
-              và bạn thực tế nhận đủ tiền.
+              Chỉ xác nhận khi bạn thực tế đã nhận đủ tiền.
+              Thu đủ tiền không tự xác nhận khách đã kết thúc buổi đá.
             </p>
           )}
 
@@ -225,8 +236,7 @@ export default function SettlementPanel({
             !info.canConfirm &&
             info.status !== "PAID" && (
               <p className="settlement-help">
-                Chỉ Admin được xác nhận booking
-                COMPLETED đã cọc thành công.
+                Chỉ xác nhận thu đủ từ giờ bắt đầu đá và khi thực tế đã nhận đủ tiền.
               </p>
             )}
         </>
