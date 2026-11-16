@@ -169,6 +169,24 @@ class ReviewTests(unittest.TestCase):
         self.assertEqual(response.json["items"],[])
         self.assertIsNone(response.json["averageRating"])
 
+    def test_other_customers_and_guests_see_same_public_reviews_and_replies(self):
+        reply={"comment":"Cảm ơn bạn", "createdAt":"2026-11-10T05:00:00Z"}
+        for headers in ({}, {"Authorization":"Bearer "+create_access_token(99,"CUSTOMER")},
+                        {"Authorization":"Bearer expired-token"}):
+            self.cur.fetchone.side_effect=[Row(FieldID=5,FieldName="QA Field"),(1,5)]
+            self.cur.fetchall.return_value=[self.review]
+            with patch("services.review_service.replies_for",return_value={30:reply}):
+                response=self.client.get("/api/fields/5/reviews",headers=headers)
+            self.assertEqual(response.status_code,200)
+            item=response.json["items"][0]
+            self.assertEqual(item["comment"],"Sân tốt")
+            self.assertEqual(item["reply"],reply)
+            self.assertTrue({"bookingId","userId","email","phone"}.isdisjoint(item))
+            queries=[call.args[0] for call in self.cur.execute.call_args_list]
+            self.assertFalse(any("R.UserID=?" in query for query in queries))
+            self.cur.execute.reset_mock()
+        self.conn.commit.assert_not_called()
+
     def test_field_missing_or_archived(self):
         self.cur.fetchone.return_value=None
         self.assertEqual(self.client.get("/api/fields/5/reviews").status_code,404)
