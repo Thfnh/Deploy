@@ -57,7 +57,8 @@ export const createBooking =
 export const getAllBookings =
   async (
     managerUserID,
-    filters = {}
+    filters = {},
+    options = {}
   ) => {
 
     void managerUserID;
@@ -87,8 +88,10 @@ export const getAllBookings =
     }
 
 
-    const query =
-      params.toString();
+    if (filters.from) params.set("from", filters.from);
+    if (filters.to) params.set("to", filters.to);
+
+    const query = params.toString();
 
 
     return apiRequest(
@@ -98,6 +101,7 @@ export const getAllBookings =
           : ""
       }`,
       {
+        ...options,
         method:
           "GET",
       }

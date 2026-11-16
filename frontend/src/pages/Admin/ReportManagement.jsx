@@ -1,15 +1,15 @@
 import { useEffect, useState } from "react";
 import { BarChart3, CalendarDays, Download, RefreshCw, TrendingUp, Wallet } from "lucide-react";
 import { bookingGroups, bookingGroupTotal, getReportSummary, reportCsv } from "../../services/report_service";
+import { vietnamDate } from "../../utils/bookingTime";
 import "./ReportManagement.css";
 
 const money = value => `${Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 2 })} đ`;
 const number = value => value == null || !Number.isFinite(Number(value)) ? "—" : Number(value).toLocaleString("vi-VN", { maximumFractionDigits: 4 });
 
 function currentMonth() {
-  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh", year: "numeric", month: "2-digit", day: "2-digit" })
-    .formatToParts(new Date()).map(part => [part.type, part.value]));
-  return { from: `${parts.year}-${parts.month}-01`, to: `${parts.year}-${parts.month}-${parts.day}` };
+  const today = vietnamDate();
+  return { from: `${today.slice(0, 7)}-01`, to: today };
 }
 
 function RevenueChart({ rows }) {
@@ -72,6 +72,11 @@ export default function ReportManagement() {
       <label>Đến ngày<input type="date" name="to" required min="1900-01-01" max="9998-12-31" value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })} /></label>
       <button className="uc16-button" disabled={loading}>Xem báo cáo</button>
       <button className="uc16-button secondary" type="button" disabled={loading} onClick={() => { const next = currentMonth(); setDraft(next); setRange(next); setLoading(true); setValidation(""); }}>Tháng này</button>
+      <button className="uc16-button secondary" type="button" disabled={loading} onClick={() => {
+        const today = vietnamDate();
+        const next = { from: today, to: today };
+        setDraft(next); setRange(next); setLoading(true); setValidation("");
+      }}>Hôm nay</button>
     </form>
     {validation && <p className="uc16-error" role="alert">{validation}</p>}
     {loading && <div className="uc16-state" role="status"><RefreshCw size={24} />Đang tổng hợp báo cáo…</div>}

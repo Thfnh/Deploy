@@ -1,6 +1,6 @@
 from services.business_time import database_iso
 
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import Blueprint, jsonify, request
 
@@ -948,6 +948,27 @@ def get_all_bookings():
             or ""
         ).strip()
 
+        date_from = request.args.get("from")
+        date_to = request.args.get("to")
+        if date_from is not None or date_to is not None:
+            try:
+                for name, value in (("from", date_from), ("to", date_to)):
+                    if len(request.args.getlist(name)) != 1 or not value:
+                        raise ValueError()
+                    parsed = date.fromisoformat(value)
+                    if (
+                        parsed.isoformat() != value
+                        or not 1900 <= parsed.year <= 9998
+                    ):
+                        raise ValueError()
+                if date_from > date_to:
+                    raise ValueError()
+            except (ValueError, TypeError):
+                return jsonify({
+                    "code": "INVALID_DATE_RANGE",
+                    "message": "Vui lòng chọn đủ từ ngày và đến ngày hợp lệ; từ ngày không được sau đến ngày.",
+                }), 400
+
         # ====================================================
         # VALIDATE STATUS FILTER
         # ====================================================
@@ -1058,6 +1079,10 @@ def get_all_bookings():
         """
 
         params = []
+
+        if date_from is not None:
+            query += " AND B.BookingDate >= ? AND B.BookingDate <= ?"
+            params.extend([date_from, date_to])
 
         if status_filter:
 

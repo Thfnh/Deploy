@@ -8,11 +8,13 @@ import { Check, Eye, RefreshCw, X } from "lucide-react";
 
 import SettlementPanel from "../../components/SettlementPanel/SettlementPanel";
 import useBookingClock from "../../hooks/useBookingClock";
+import useBookingRange from "../../hooks/useBookingRange";
+import { vietnamDate } from "../../utils/bookingTime";
+import { dateRangeError, formatBookingDate } from "../../utils/bookingDateRange";
 import { bookingNeedsCollection, bookingDisplayStatus, bookingBalance } from "../../utils/bookingStatus";
 import { confirmDepositRefund, downloadRefundEvidence, getCancellationInfo, decideCancellation, adminCancelBooking } from "../../services/cancellation_service";
 
 import {
-  getAllBookings,
   getBookingDetail,
   updateBookingStatus,
 } from "../../services/booking_service";
@@ -69,8 +71,20 @@ export default function BookingManagement() {
   const isAdmin =
     String(user?.Role || "").toUpperCase() === "ADMIN";
 
-  const [bookings, setBookings] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState(() => {
+    const today = vietnamDate();
+    return { from: today, to: today };
+  });
+  const [dateFilter, setDateFilter] = useState(() => ({ mode: "day", ...range }));
+  const dateError = dateRangeError(dateFilter.from, dateFilter.to);
+  const { bookings, loading, error: bookingsError, refresh: loadBookings } = useBookingRange(user?.UserID, range);
+  const changeDates = next => {
+    setDateFilter(next);
+    if (!dateRangeError(next.from, next.to)) {
+      setRange(previous => previous.from === next.from && previous.to === next.to
+        ? previous : { from: next.from, to: next.to });
+    }
+  };
 
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
@@ -89,72 +103,6 @@ export default function BookingManagement() {
   const cancelRequestsError = cancellationInbox.error;
   const [reviewingId, setReviewingId] = useState(null);
   const [reviewNote, setReviewNote] = useState({});
-
-
-  // ======================================================
-  // LOAD BOOKINGS
-  // ======================================================
-
-  const loadBookings = async () => {
-    if (!user?.UserID) return;
-
-    setLoading(true);
-
-    try {
-      const result = await getAllBookings(user.UserID);
-
-      setBookings(
-        Array.isArray(result?.Bookings)
-          ? result.Bookings
-          : []
-      );
-
-    } catch (err) {
-      alert(
-        err.message || "Không thể tải danh sách đặt sân"
-      );
-
-    } finally {
-      setLoading(false);
-    }
-  };
-
-
-  useEffect(() => {
-    if (!user?.UserID) return undefined;
-
-    let active = true;
-    let timer;
-
-    setLoading(true);
-
-    const poll = () => getAllBookings(user.UserID)
-      .then((result) => {
-        if (active) {
-          setBookings(
-            Array.isArray(result?.Bookings)
-              ? result.Bookings
-              : []
-          );
-        }
-      })
-      .catch((err) => {
-        if (active) {
-          alert(
-            err.message || "Không tải được booking"
-          );
-        }
-      })
-      .finally(() => {
-        if (active) { setLoading(false); timer = window.setTimeout(poll, 10_000); }
-      });
-    poll();
-
-    return () => {
-      active = false;
-      window.clearTimeout(timer);
-    };
-  }, [user?.UserID]);
 
 
   // ======================================================
@@ -540,7 +488,7 @@ export default function BookingManagement() {
         ].map(([title, count]) => (
           <div className="card" key={title}>
             <p>{title}</p>
-            <h2>{count}</h2>
+            <h2>{loading ? "…" : bookingsError ? "—" : count}</h2>
           </div>
         ))}
       </div>
@@ -548,7 +496,7 @@ export default function BookingManagement() {
 
       {/* FILTER */}
 
-      <div className="filter">
+      <div className="filter booking-date-filter">
 
         <input
           aria-label="Tìm booking"
@@ -575,7 +523,35 @@ export default function BookingManagement() {
           )}
         </select>
 
+        <div className="booking-date-controls">
+          <label>Thời gian
+            <select aria-label="Chọn kiểu lọc ngày" value={dateFilter.mode}
+              onChange={event => changeDates({ ...dateFilter, mode: event.target.value, to: event.target.value === "day" ? dateFilter.from : dateFilter.to })}>
+              <option value="day">Một ngày</option>
+              <option value="range">Khoảng ngày</option>
+            </select>
+          </label>
+          <label>{dateFilter.mode === "day" ? "Ngày đặt sân" : "Từ ngày"}
+            <input type="date" aria-label={dateFilter.mode === "day" ? "Ngày đặt sân" : "Từ ngày"}
+              min="1900-01-01" max="9998-12-31" value={dateFilter.from}
+              aria-invalid={Boolean(dateError)} aria-describedby={dateError ? "booking-date-error" : undefined}
+              onChange={event => changeDates({ ...dateFilter, from: event.target.value, to: dateFilter.mode === "day" ? event.target.value : dateFilter.to })} />
+          </label>
+          {dateFilter.mode === "range" && <label>Đến ngày
+            <input type="date" aria-label="Đến ngày" min="1900-01-01" max="9998-12-31"
+              value={dateFilter.to} aria-invalid={Boolean(dateError)} aria-describedby={dateError ? "booking-date-error" : undefined}
+              onChange={event => changeDates({ ...dateFilter, to: event.target.value })} />
+          </label>}
+          <button type="button" className="booking-today-button" onClick={() => {
+            const today = vietnamDate(now);
+            changeDates({ mode: "day", from: today, to: today });
+          }}>Hôm nay</button>
+        </div>
       </div>
+
+      {dateError && <p className="booking-filter-error" id="booking-date-error" role="alert">{dateError} Vẫn hiển thị phạm vi hợp lệ gần nhất.</p>}
+      <p className="booking-date-summary">Đang xem: <strong>{formatBookingDate(range.from)}{range.from !== range.to ? ` – ${formatBookingDate(range.to)}` : ""}</strong> · Theo ngày diễn ra trận. KPI không phụ thuộc tìm kiếm và trạng thái.</p>
+      {bookingsError && <div className="booking-filter-error" role="alert">{bookingsError} <button type="button" onClick={loadBookings}>Thử lại</button></div>}
 
 
       {/* UC07 - Danh sách yêu cầu hủy chờ ADMIN duyệt */}
@@ -592,6 +568,7 @@ export default function BookingManagement() {
             </button>
           </div>
 
+          <p className="booking-inbox-note">Yêu cầu đang chờ xử lý (không phụ thuộc bộ lọc ngày)</p>
           {cancelRequestsError && <p role="alert" className="cancellation-requests-error">{cancelRequestsError}</p>}
           {!cancelRequestsError && cancelRequests.length === 0 && (
             <p className="cancellation-requests-empty">Không có yêu cầu hủy đang chờ.</p>
@@ -681,7 +658,7 @@ export default function BookingManagement() {
                 >
                   {loading
                     ? "Đang tải booking..."
-                    : "Không có booking"}
+                    : bookingsError ? "Không tải được đơn đặt sân. Vui lòng thử lại." : "Không có đơn đặt sân trong khoảng thời gian đã chọn"}
                 </td>
               </tr>
 

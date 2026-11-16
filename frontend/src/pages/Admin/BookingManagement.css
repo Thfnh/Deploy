@@ -727,3 +727,68 @@ strong.booking-payment-paid {
 .booking-table-box tbody tr.booking-row-unpaid > td:first-child { box-shadow: inset 4px 0 #eab308; }
 .booking-status-unpaid { background: #fef08a; color: #854d0e; border: 1px solid #facc15; }
 .booking-lifecycle-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(145px, 1fr)); gap: 16px; }
+.admin-content .booking-date-filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+}
+.admin-content .booking-date-filter > input {
+  flex: 1 1 240px;
+  min-width: 180px;
+}
+.booking-date-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+.booking-date-controls label {
+  display: grid;
+  gap: 6px;
+  color: #355e4c;
+  font-size: 12px;
+  font-weight: 650;
+  min-width: 0;
+}
+.admin-content .booking-date-controls input,
+.admin-content .booking-date-controls select {
+  width: auto;
+  min-width: 145px;
+  max-width: 100%;
+  min-height: 44px;
+  box-sizing: border-box;
+}
+.booking-today-button {
+  min-height: 44px;
+  padding: 10px 16px;
+  border: 1px solid #c7ddd0;
+  border-radius: 10px;
+  background: #fff;
+  color: #08734e;
+  font: inherit;
+  font-weight: 650;
+  cursor: pointer;
+}
+.booking-date-summary, .booking-inbox-note {
+  font-size: 13px;
+  line-height: 1.6;
+  color: #607b6b;
+  margin: 12px 0 20px;
+}
+.booking-filter-error {
+  padding: 12px 16px;
+  background: #fff1ee;
+  color: #a83e30;
+  border-radius: 10px;
+  line-height: 1.6;
+}
+@media (max-width: 650px) {
+  .admin-content .booking-date-filter > input,
+  .admin-content .booking-date-filter > select { width: 100%; min-width: 0; }
+  .booking-date-controls { width: 100%; }
+  .booking-date-controls label { flex: 1 1 140px; }
+  .admin-content .booking-date-controls input,
+  .admin-content .booking-date-controls select { width: 100%; min-width: 0; }
+}
