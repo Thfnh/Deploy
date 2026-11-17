@@ -13,6 +13,7 @@ import Login
 
 import Register
   from "../pages/Register/Register";
+import AuthOtp from "../pages/AuthOtp/AuthOtp";
 
 import FieldList
   from "../pages/FieldList/FieldList";
@@ -63,6 +64,10 @@ function AppRoutes() {
   return (
 
     <Routes>
+      <Route path="/register/verify-otp" element={<AuthOtp key="register-otp" mode="verify" />} />
+      <Route path="/forgot-password" element={<AuthOtp key="forgot" mode="forgot" />} />
+      <Route path="/forgot-password/verify-otp" element={<AuthOtp key="forgot-otp" mode="verify" />} />
+      <Route path="/reset-password" element={<AuthOtp key="reset" mode="reset" />} />
       {["/invoices/:invoiceId", "/bookings/:bookingId/invoice"].map((path) => (
         <Route key={path} path={path} element={
           <ProtectedRoute allowedRoles={["CUSTOMER", "ADMIN"]}><InvoiceDetail /></ProtectedRoute>

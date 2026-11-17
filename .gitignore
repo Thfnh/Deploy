@@ -32,6 +32,10 @@ venv/
 .postman/
 resources.yaml
 backend/.env
+credentials.json
+gmail_token.json
+*gmail*token*.json
+client_secret*.json
 
 /.worktrees/
 /tash show --stat stash@{0}

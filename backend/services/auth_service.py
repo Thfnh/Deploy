@@ -41,8 +41,8 @@ class AuthenticationError(
         )
 
 
-def register_customer(full_name, username, email, phone, password):
-    """Validate and create a CUSTOMER account atomically."""
+def validate_registration(full_name, username, email, phone, password):
+    """Validate registration without accessing the database."""
     if not all(isinstance(value, str) for value in (full_name, username, email, phone, password)):
         raise AuthenticationError("Vui lòng nhập đầy đủ thông tin hợp lệ", 400)
     full_name = _normalize(full_name)
@@ -72,45 +72,17 @@ def register_customer(full_name, username, email, phone, password):
             "Mật khẩu phải có chữ hoa, chữ thường và số hoặc ký tự đặc biệt", 400
         )
 
-    conn = get_connection()
-    if conn is None:
-        raise AuthenticationError("Không thể kết nối database", 500)
+    return full_name, username, email, phone, password
 
-    cursor = conn.cursor()
-    try:
-        # UPDLOCK + HOLDLOCK serializes duplicate checks for concurrent requests.
-        cursor.execute(
-            """
-            SELECT TOP 1 UserID FROM Users WITH (UPDLOCK, HOLDLOCK)
-            WHERE Username = ? OR Email = ? OR Phone = ?
-            """,
-            username, email, phone,
-        )
-        existing = cursor.fetchone()
-        if existing is not None:
-            raise AuthenticationError("Username/Email/Phone đã tồn tại", 409)
 
-        password_hash = bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
-        cursor.execute(
-            """
-            INSERT INTO Users (FullName, Username, Email, Phone, PasswordHash, Role, Status)
-            OUTPUT INSERTED.UserID
-            VALUES (?, ?, ?, ?, ?, 'CUSTOMER', 'ACTIVE')
-            """,
-            full_name, username, email, phone, password_hash,
-        )
-        row = cursor.fetchone()
-        if row is None:
-            raise RuntimeError("Không nhận được UserID sau khi tạo tài khoản")
-        user_id = row[0]
-        conn.commit()
-        return {"userId": user_id, "username": username, "email": email, "role": "CUSTOMER"}
-    except Exception:
-        conn.rollback()
-        raise
-    finally:
-        cursor.close()
-        conn.close()
+def validate_new_password(password):
+    return validate_registration("Reset", "reset_user", "reset@example.com", "0900000000", password)[4]
+
+
+def register_customer(full_name, username, email, phone, password, ip=""):
+    from services.otp_service import start_registration
+    values = validate_registration(full_name, username, email, phone, password)
+    return start_registration(values, ip)
 
 
 def _normalize(

@@ -26,23 +26,67 @@ auth_bp = Blueprint(
 )
 
 
-@auth_bp.route("/register", methods=["POST"])
-def register():
+def otp_response(action, status=200):
     data = request.get_json(silent=True)
     if not isinstance(data, dict):
         return jsonify({"success": False, "message": "Dữ liệu JSON không hợp lệ"}), 400
     try:
-        user = register_customer(
-            data.get("fullName"), data.get("username"), data.get("email"),
-            data.get("phone"), data.get("password"),
-        )
+        result = action(data)
+        response = jsonify({"success": True, **result})
+        response.headers["Cache-Control"] = "no-store"
+        return response, status
     except AuthenticationError as error:
-        return jsonify({"success": False, "message": error.message}), error.status_code
+        response = jsonify({"success": False, "message": error.message})
+        response.headers["Cache-Control"] = "no-store"
+        if error.status_code == 429:
+            response.headers["Retry-After"] = "60"
+        return response, error.status_code
     except Exception:
-        import logging
-        logging.getLogger(__name__).exception("Customer registration failed")
-        return jsonify({"success": False, "message": "Không thể đăng ký tài khoản"}), 500
-    return jsonify({"success": True, "message": "Đăng ký thành công", "user": user}), 201
+        # Never log driver/Google exception details or request bodies.
+        return jsonify({"success": False, "message": "Dịch vụ xác minh tạm thời không khả dụng."}), 503
+
+
+@auth_bp.route("/register", methods=["POST"])
+def register():
+    return otp_response(lambda d: register_customer(
+        d.get("fullName"), d.get("username"), d.get("email"), d.get("phone"),
+        d.get("password"), request.remote_addr or "unknown"), 202)
+
+
+@auth_bp.route("/register/verify-otp", methods=["POST"])
+def register_verify():
+    from services.otp_service import verify
+    return otp_response(lambda d: verify(d.get("challengeId"), d.get("otp"), "REGISTER"), 201)
+
+
+@auth_bp.route("/register/resend-otp", methods=["POST"])
+def register_resend():
+    from services.otp_service import resend
+    return otp_response(lambda d: resend(d.get("challengeId"), "REGISTER", request.remote_addr or "unknown"), 202)
+
+
+@auth_bp.route("/forgot-password", methods=["POST"])
+def forgot_password():
+    from services.otp_service import start_reset
+    return otp_response(lambda d: start_reset(d.get("email"), request.remote_addr or "unknown"), 202)
+
+
+@auth_bp.route("/forgot-password/verify-otp", methods=["POST"])
+def forgot_verify():
+    from services.otp_service import verify
+    return otp_response(lambda d: verify(d.get("challengeId"), d.get("otp"), "RESET_PASSWORD"))
+
+
+@auth_bp.route("/forgot-password/resend-otp", methods=["POST"])
+def forgot_resend():
+    from services.otp_service import resend
+    return otp_response(lambda d: resend(d.get("challengeId"), "RESET_PASSWORD", request.remote_addr or "unknown"), 202)
+
+
+@auth_bp.route("/reset-password", methods=["POST"])
+def reset_password_route():
+    from services.otp_service import reset_password
+    return otp_response(lambda d: reset_password(d.get("resetGrant"), d.get("newPassword")))
 
 
 def to_public_user(
