@@ -213,6 +213,7 @@ export const registerUser = async (userData) => {
   const result = await apiRequest("/api/auth/register", {
     method: "POST",
     auth: false,
+    redirectOnUnauthorized: false,
     body: JSON.stringify(userData),
   });
   if (!result?.success) {
@@ -220,6 +221,11 @@ export const registerUser = async (userData) => {
   }
   return result;
 };
+
+export const otpRequest = (path, body) => apiRequest(`/api/auth/${path}`, {
+  method: "POST", auth: false, redirectOnUnauthorized: false,
+  body: JSON.stringify(body),
+});
 
 
 // ============================================================

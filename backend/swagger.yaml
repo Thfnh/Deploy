@@ -1210,45 +1210,365 @@ paths:
   /api/auth/register:
     post:
       tags:
-        - Authentication
-      summary: "Đăng ký tài khoản CUSTOMER"
+      - Authentication
+      summary: Create pending CUSTOMER registration; email OTP, no active user yet
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [fullName, username, email, phone, password]
+              required:
+              - fullName
+              - username
+              - email
+              - phone
+              - password
               properties:
-                fullName: { type: string, example: "Nguyen Van A" }
-                username: { type: string, example: "nguyenvana" }
-                email: { type: string, format: email, example: "a@example.com" }
-                phone: { type: string, example: "0901234567" }
+                fullName:
+                  type: string
+                  maxLength: 100
+                username:
+                  type: string
+                  pattern: ^[A-Za-z0-9_]{4,30}$
+                email:
+                  type: string
+                  format: email
+                phone:
+                  type: string
+                  pattern: ^0[0-9]{9}$
                 password:
                   type: string
                   format: password
                   minLength: 8
-                  description: "Có chữ hoa ASCII, chữ thường ASCII và số hoặc ký tự đặc biệt; tối đa 72 byte UTF-8."
-                  example: "P@ssw0rd"
+                  description: ASCII upper/lower and digit/symbol; max 72 UTF-8 bytes
       responses:
-        '201':
-          description: "Đăng ký thành công"
+        '202':
+          description: Accepted/success
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  success: { type: boolean, example: true }
-                  message: { type: string, example: "Đăng ký thành công" }
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  challengeId:
+                    type: string
+                    format: uuid
+                  expiresIn:
+                    type: integer
+                    example: 300
+                  resendAfter:
+                    type: integer
+                    example: 60
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
+  /api/auth/register/verify-otp:
+    post:
+      tags:
+      - Authentication
+      summary: Verify registration and create ACTIVE CUSTOMER atomically
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - challengeId
+              - otp
+              properties:
+                challengeId:
+                  type: string
+                  format: uuid
+                otp:
+                  type: string
+                  pattern: ^[0-9]{6}$
+      responses:
+        '201':
+          description: Accepted/success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
                   user:
                     type: object
                     properties:
-                      userId: { type: integer, example: 123 }
-                      username: { type: string, example: "nguyenvana" }
-                      email: { type: string, example: "a@example.com" }
-                      role: { type: string, example: "CUSTOMER" }
-        '400': { description: "Thiếu trường hoặc dữ liệu sai định dạng" }
-        '409': { description: "Username, Email hoặc Phone đã tồn tại" }
+                      userId:
+                        type: integer
+                      role:
+                        type: string
+                        enum:
+                        - CUSTOMER
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
+  /api/auth/register/resend-otp:
+    post:
+      tags:
+      - Authentication
+      summary: Resend registration OTP; invalidate old challenge
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - challengeId
+              properties:
+                challengeId:
+                  type: string
+                  format: uuid
+      responses:
+        '202':
+          description: Accepted/success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  challengeId:
+                    type: string
+                    format: uuid
+                  expiresIn:
+                    type: integer
+                    example: 300
+                  resendAfter:
+                    type: integer
+                    example: 60
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
+  /api/auth/forgot-password:
+    post:
+      tags:
+      - Authentication
+      summary: Generic response with opaque challenge, whether email exists or not
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '202':
+          description: Accepted/success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  challengeId:
+                    type: string
+                    format: uuid
+                  expiresIn:
+                    type: integer
+                    example: 300
+                  resendAfter:
+                    type: integer
+                    example: 60
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
+  /api/auth/forgot-password/verify-otp:
+    post:
+      tags:
+      - Authentication
+      summary: Verify reset OTP and issue one-use 10-minute resetGrant
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - challengeId
+              - otp
+              properties:
+                challengeId:
+                  type: string
+                  format: uuid
+                otp:
+                  type: string
+                  pattern: ^[0-9]{6}$
+      responses:
+        '200':
+          description: Accepted/success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  resetGrant:
+                    type: string
+                  expiresIn:
+                    type: integer
+                    example: 600
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
+  /api/auth/forgot-password/resend-otp:
+    post:
+      tags:
+      - Authentication
+      summary: Resend password reset OTP with cooldown
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - challengeId
+              properties:
+                challengeId:
+                  type: string
+                  format: uuid
+      responses:
+        '202':
+          description: Accepted/success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+                  challengeId:
+                    type: string
+                    format: uuid
+                  expiresIn:
+                    type: integer
+                    example: 300
+                  resendAfter:
+                    type: integer
+                    example: 60
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
+  /api/auth/reset-password:
+    post:
+      tags:
+      - Authentication
+      summary: Update bcrypt password and consume all reset grants and challenges
+      description: 'Cache-Control: no-store. OTP expires in 5 minutes, max 5 failed
+        guesses. Resend after 60 seconds; max 10 send attempts per email or IP per hour.
+        Secrets never returned except resetGrant after reset OTP verification. See docs/auth-gmail-otp.md.'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+              - resetGrant
+              - newPassword
+              properties:
+                resetGrant:
+                  type: string
+                  minLength: 32
+                  maxLength: 128
+                newPassword:
+                  type: string
+                  format: password
+                  minLength: 8
+      responses:
+        '200':
+          description: Accepted/success
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  message:
+                    type: string
+        '400':
+          description: Invalid input, expired, consumed, or incorrect OTP/grant
+        '409':
+          description: Username/email/phone conflict
+        '429':
+          description: 'Rate limit or cooldown; Retry-After: 60'
+        '503':
+          description: Database, Gmail or configuration unavailable; no activation
 
   /api/auth/login:
     post:

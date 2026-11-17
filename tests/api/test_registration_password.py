@@ -33,17 +33,14 @@ class RegistrationPasswordTests(unittest.TestCase):
                 self.assertFalse(response.get_json()["success"])
         connection.assert_not_called()
 
-    @patch("services.auth_service.get_connection")
-    def test_valid_passwords_create_customer(self, connection):
-        connection.return_value.cursor.return_value.fetchone.side_effect = [
-            None, (123,), None, (124,), None, (125,),
-        ]
+    @patch("services.otp_service.start_registration", return_value={"challengeId": "pending"})
+    def test_valid_passwords_start_pending_registration(self, start):
         for password in ("Abcdefg1", "Abcdefg!", "Abc" + "é" * 34 + "1"):
             with self.subTest(password=password):
                 response = self.register(password)
-                self.assertEqual(response.status_code, 201)
+                self.assertEqual(response.status_code, 202)
                 self.assertTrue(response.get_json()["success"])
-        self.assertEqual(connection.return_value.commit.call_count, 3)
+        self.assertEqual(start.call_count, 3)
 
 
 if __name__ == "__main__":
