@@ -4,6 +4,7 @@ import { UserRound, Mail, Phone, LockKeyhole, Eye, EyeOff, ArrowLeft } from "luc
 import AuthLayout from "../../components/AuthLayout/AuthLayout";
 import registerField from "../../assets/images/football-field.jpg";
 import { registerUser } from "../../services/auth_service";
+import { setOtpFlow } from "../../services/otp_context";
 import "./Register.css";
 
 function Register() {
@@ -38,6 +39,7 @@ function Register() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
+    if (loading) return;
     setServerMessage("");
     if (!validateForm()) return;
     setLoading(true);
@@ -49,7 +51,8 @@ function Register() {
         phone: formData.phone.trim(),
         password: formData.password,
       });
-      navigate("/login", { state: { message: result.message } });
+      setOtpFlow({ ...result, purpose: "register", sentAt: Date.now() });
+      navigate("/register/verify-otp");
     } catch (error) {
       setServerMessage(error.message);
     } finally {
