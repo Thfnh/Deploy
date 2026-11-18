@@ -35,8 +35,7 @@ export default function ReviewManagement() {
     finally { setSaving(null); }
   };
   return <section className="uc10-admin">
-    <header className="uc10-admin-heading"><div><span className="uc10-eyebrow">LẮNG NGHE NGƯỜI CHƠI</span><h1>Đánh giá & phản hồi</h1>
-      <p className="uc10-muted">Tự cập nhật mỗi 30 giây và khi quay lại cửa sổ. Nội dung đang soạn được giữ nguyên.</p></div>
+    <header className="uc10-admin-heading"><div><span className="uc10-eyebrow">LẮNG NGHE NGƯỜI CHƠI</span><h1>Đánh giá & phản hồi</h1></div>
       <button className="uc10-button secondary" type="button" onClick={refresh}>Làm mới</button></header>
     <div className="uc10-admin-stats"><div><span>Tổng đánh giá</span><strong>{data?.totalReviews ?? "—"}</strong></div>
       <div><span>Chờ phản hồi</span><strong>{data?.unansweredCount ?? "—"}</strong></div>

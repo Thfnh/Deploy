@@ -34,8 +34,7 @@ export default function CustomerManagement() {
   }, [filters, revision]);
   const search = event => { event.preventDefault(); setLoading(true); setFilters({ ...draft, keyword: draft.keyword.trim(), page: 1 }); };
   return <section className="uc13-page">
-    <header className="uc13-heading"><div><span className="uc13-eyebrow">KHÁCH HÀNG CỦA SÂN</span><h1>Quản lý khách hàng</h1>
-      <p>Tra cứu thông tin liên hệ và lịch sử đặt sân trong cùng một nơi.</p></div>
+    <header className="uc13-heading"><div><span className="uc13-eyebrow">KHÁCH HÀNG CỦA SÂN</span><h1>Quản lý khách hàng</h1></div>
       <button className="uc13-button secondary" disabled={loading} onClick={() => { setLoading(true); setRevision(value => value+1); }}>Làm mới</button></header>
     <form className="uc13-filters" onSubmit={search}>
       <label>Tìm khách hàng<input value={draft.keyword} maxLength={100} onChange={e => setDraft({ ...draft, keyword: e.target.value })} placeholder="Tên, username, email hoặc điện thoại" /></label>

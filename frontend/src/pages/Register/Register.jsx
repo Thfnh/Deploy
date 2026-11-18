@@ -72,7 +72,6 @@ function Register() {
       <div className="register-card">
         <div className="register-icon"><UserRound size={36} /></div>
         <h2>Đăng ký</h2>
-        <p className="register-subtitle">Đăng ký ngay tài khoản Sân Bóng mới</p>
         <form onSubmit={handleSubmit} noValidate>
           {fields.map(({ name, label, icon: Icon, type, placeholder }) => (
             <div className="register-form-group" key={name}>

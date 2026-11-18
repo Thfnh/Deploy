@@ -137,20 +137,17 @@ export default function BookingManagement() {
   const stats = useMemo(() => ({
     total: bookings.length,
 
-    pending: bookings.filter(
-      (b) => bookingDisplayStatus(b, now) === "PENDING"
-    ).length,
-
     confirmed: bookings.filter(
       (b) => bookingDisplayStatus(b, now) === "CONFIRMED"
+    ).length,
+
+    cancelled: bookings.filter(
+      (b) => bookingDisplayStatus(b, now) === "CANCELLED"
     ).length,
 
     completed: bookings.filter(
       (b) => bookingDisplayStatus(b, now) === "COMPLETED"
     ).length,
-
-    inProgress: bookings.filter(b => bookingDisplayStatus(b, now) === "IN_PROGRESS").length,
-    ended: bookings.filter(b => bookingDisplayStatus(b, now) === "ENDED").length,
   }), [bookings, now]);
 
 
@@ -478,12 +475,8 @@ export default function BookingManagement() {
       <div className="cards booking-lifecycle-stats">
         {[
           ["Tổng số đơn", stats.total],
-          ["Chờ xác nhận", stats.pending],
           ["Đã xác nhận", stats.confirmed],
-          ["Đang đá", stats.inProgress],
-          ["Đã hết giờ / kết thúc", stats.ended],
-          ["Khách không đến", bookings.filter(b => bookingDisplayStatus(b, now) === "NO_SHOW").length],
-          ["Đã hủy", bookings.filter(b => bookingDisplayStatus(b, now) === "CANCELLED").length],
+          ["Đã hủy", stats.cancelled],
           ["Hoàn thành", stats.completed]
         ].map(([title, count]) => (
           <div className="card" key={title}>
@@ -550,7 +543,7 @@ export default function BookingManagement() {
       </div>
 
       {dateError && <p className="booking-filter-error" id="booking-date-error" role="alert">{dateError} Vẫn hiển thị phạm vi hợp lệ gần nhất.</p>}
-      <p className="booking-date-summary">Đang xem: <strong>{formatBookingDate(range.from)}{range.from !== range.to ? ` – ${formatBookingDate(range.to)}` : ""}</strong> · Theo ngày diễn ra trận. KPI không phụ thuộc tìm kiếm và trạng thái.</p>
+      <p className="booking-date-summary">Đang xem: <strong>{formatBookingDate(range.from)}{range.from !== range.to ? ` – ${formatBookingDate(range.to)}` : ""}</strong> ·</p>
       {bookingsError && <div className="booking-filter-error" role="alert">{bookingsError} <button type="button" onClick={loadBookings}>Thử lại</button></div>}
 
 
@@ -568,7 +561,6 @@ export default function BookingManagement() {
             </button>
           </div>
 
-          <p className="booking-inbox-note">Yêu cầu đang chờ xử lý (không phụ thuộc bộ lọc ngày)</p>
           {cancelRequestsError && <p role="alert" className="cancellation-requests-error">{cancelRequestsError}</p>}
           {!cancelRequestsError && cancelRequests.length === 0 && (
             <p className="cancellation-requests-empty">Không có yêu cầu hủy đang chờ.</p>

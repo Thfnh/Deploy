@@ -582,12 +582,6 @@ const FieldList = () => {
               Danh sách sân
             </h1>
 
-
-            <p>
-              Tìm sân phù hợp, chọn ngày và kiểm tra
-              khung giờ còn trống trước khi đặt.
-            </p>
-
           </div>
 
         </section>

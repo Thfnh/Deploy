@@ -27,7 +27,6 @@ function ReviewList({ fieldId }) {
   return <>
     <span className="uc10-eyebrow">GÓC NHÌN TỪ NGƯỜI CHƠI</span>
     <h1>{data?.fieldName ? `Đánh giá ${data.fieldName}` : "Đánh giá sân bóng"}</h1>
-    <p className="uc10-muted">Đánh giá công khai từ khách hàng đã đặt sân. Bạn có thể xem nhận xét và phản hồi của chủ sân mà không cần đăng nhập.</p>
     {error && <div role="alert" className="uc10-error">{error} <button className="uc10-button secondary" type="button"
       onClick={() => { setError(""); setLoading(true); setRevision(value => value + 1); }}>Thử lại</button></div>}
     {loading && <p role="status">Đang tải đánh giá…</p>}

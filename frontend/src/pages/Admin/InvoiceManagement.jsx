@@ -30,7 +30,6 @@ export default function InvoiceManagement() {
   const turnPage = (page) => { setBusy(true); setFilters({ ...filters, page }); };
   return <section className="uc12-page">
     <h1>Hóa đơn & thanh toán</h1>
-    <p>Tra cứu hóa đơn đã phát hành và lịch sử giao dịch. Hóa đơn tạm thời sau đặt cọc được xem trong quản lý đặt sân.</p>
     <form className="uc12-filters" onSubmit={search}>
       <label>Khách hàng<input name="customer" maxLength={100} value={draft.customer} onChange={update} placeholder="Tên hoặc email" /></label>
       <label>Trạng thái<select name="status" value={draft.status} onChange={update}>

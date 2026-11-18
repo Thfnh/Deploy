@@ -63,8 +63,7 @@ export default function ReportManagement() {
   const ready = !loading && !error && result;
   const summaryTotal = result ? bookingGroupTotal(result.bookingLifecycleBreakdown) : null;
   return <section className="uc16-page" aria-busy={loading}>
-    <header className="uc16-heading"><div><span className="uc16-eyebrow">HIỆU QUẢ HOẠT ĐỘNG</span><h1>Thống kê & báo cáo</h1>
-      <p>Theo dõi khoản thu, lịch đặt sân và giao dịch trong cùng một nơi.</p></div>
+    <header className="uc16-heading"><div><span className="uc16-eyebrow">HIỆU QUẢ HOẠT ĐỘNG</span><h1>Thống kê & báo cáo</h1></div>
       <button className="uc16-button secondary" disabled={!ready || summaryTotal===null} onClick={exportReport}><Download size={17} />Xuất CSV</button></header>
     <form className="uc16-filter" onSubmit={apply}>
       <div className="uc16-filter-intro"><CalendarDays size={21} /><strong>Khoảng báo cáo</strong><small>Mặc định từ đầu tháng đến hôm nay · tối đa 366 ngày</small></div>
