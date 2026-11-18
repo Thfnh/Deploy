@@ -31,7 +31,7 @@ jobs:
         run: |
           set -euo pipefail
           case "$SOURCE_BRANCH" in
-            develop|main) ;;
+            develop) ;;
             *) echo "Unexpected source branch: $SOURCE_BRANCH"; exit 1 ;;
           esac
           git -C source fetch origin "$SOURCE_BRANCH"

@@ -51,7 +51,7 @@ jobs:
             fi
 
             case "$DEPLOY_BRANCH" in
-              develop|main) ;;
+              develop) ;;
               *) echo "Unexpected deployment branch: $DEPLOY_BRANCH"; exit 1 ;;
             esac
 
@@ -65,6 +65,14 @@ jobs:
             # Forced checkout may remove the previously tracked .env.
             git checkout -f -B "$DEPLOY_BRANCH" "$DEPLOY_SHA"
             install -m 600 /root/project1-config/.env .env
+
+            # Only allow automatic deployment while Staging is active.
+            active_db=$(grep -E '^DB_NAME=' .env | cut -d= -f2-)
+            if [ "$active_db" != "FootballBookingDB" ]; then
+              echo "Deployment stopped: active database is not Staging."
+              echo "Switch backend to Staging before deploying from develop."
+              exit 1
+            fi
 
             # Fail early if deployment secrets/configuration were not provided.
             docker compose config --quiet
