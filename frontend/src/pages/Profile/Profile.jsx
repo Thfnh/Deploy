@@ -498,11 +498,6 @@ function Profile({ adminView = false }) {
                 Thông tin cá nhân
               </h1>
 
-
-              <p>
-                Xem và cập nhật thông tin tài khoản đang đăng nhập.
-              </p>
-
             </div>
 
           </div>

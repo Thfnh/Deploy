@@ -429,10 +429,6 @@ function FieldManagement() {
       <div className="fm-header">
         <div>
           <h1>QUẢN LÝ SÂN BÓNG</h1>
-          <p>
-            UC15 – Thêm, sửa, quản lý giá, bảo trì,
-            lưu trữ và khôi phục sân.
-          </p>
         </div>
 
         <div className="fm-header-actions">

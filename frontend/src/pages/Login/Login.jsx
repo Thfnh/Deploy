@@ -320,11 +320,6 @@ function Login() {
         </h2>
 
 
-        <p className="login-subtitle">
-          Chào mừng bạn quay trở lại với Sân Bóng
-        </p>
-
-
         <form
           onSubmit={handleSubmit}
           noValidate
