@@ -252,7 +252,10 @@ function FieldManagement() {
 
     if (
       !window.confirm(
-        `Bạn muốn ${label} cho sân "${field.FieldName}"?`
+        `Bạn muốn ${label} cho sân "${field.FieldName}"?` +
+          (nextStatus === "MAINTENANCE"
+            ? "\n\nSân sẽ ngừng nhận mọi lượt đặt mới. Booking và tiền cọc hiện có vẫn được giữ nguyên. Vui lòng kiểm tra lịch đặt và chủ động liên hệ khách nếu cần đổi lịch hoặc hoàn cọc."
+            : "\n\nSân sẽ nhận đặt mới trở lại theo bảng giá hiện tại.")
       )
     ) {
       return;

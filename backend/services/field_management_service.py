@@ -437,8 +437,8 @@ def set_field_status(cursor, field_id, status):
 
     status = validate_status(status)
 
-    if status == "MAINTENANCE":
-        ensure_no_active_bookings(cursor, field_id)
+    # Maintenance blocks NEW bookings, not existing reservations. Owners contact
+    # affected customers and handle cancellation/refunds separately if needed.
 
     cursor.execute(
         """
