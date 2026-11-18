@@ -125,7 +125,7 @@ class BookingCancellationFlowTests(unittest.TestCase):
 
         booking_data = res_booking.json()
         self.assertEqual(
-            booking_data.get("status"),
+            booking_data.get("Status"),
             "CANCELLED",
             "Lỗi: Trạng thái booking cuối cùng không phải là CANCELLED!",
         )
