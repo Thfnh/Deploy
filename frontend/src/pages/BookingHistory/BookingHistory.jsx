@@ -234,102 +234,6 @@ function BookingHistory() {
   };
 
 
-  const counts =
-    useMemo(
-      () => {
-
-        const result = {
-
-          total:
-            allBookings.length,
-
-          pending:
-            0,
-
-          confirmed:
-            0,
-
-          completed:
-            0,
-
-          cancelled:
-            0,
-          awaiting: 0,
-          noShow: 0,
-          inProgress: 0,
-          ended: 0,
-
-        };
-
-
-        allBookings.forEach(
-          (
-            booking
-          ) => {
-
-            const status = bookingDisplayStatus(booking, now);
-            if (status === "AWAITING_ARRIVAL") result.awaiting += 1;
-            if (status === "NO_SHOW") result.noShow += 1;
-            if (status === "IN_PROGRESS") result.inProgress += 1;
-            if (status === "ENDED") result.ended += 1;
-
-            if (
-              status ===
-              "PENDING"
-            ) {
-
-              result.pending +=
-                1;
-
-            }
-
-
-            if (
-              status ===
-              "CONFIRMED"
-            ) {
-
-              result.confirmed +=
-                1;
-
-            }
-
-
-            if (
-              status ===
-              "COMPLETED"
-            ) {
-
-              result.completed +=
-                1;
-
-            }
-
-
-            if (
-              status ===
-              "CANCELLED"
-            ) {
-
-              result.cancelled +=
-                1;
-
-            }
-
-          }
-        );
-
-
-        return result;
-
-      },
-      [
-        allBookings,
-        now,
-      ]
-    );
-
-
   if (
     role === "ADMIN" ||
     role === "STAFF"
@@ -385,13 +289,6 @@ function BookingHistory() {
               Lịch sử đặt sân
             </h1>
 
-
-            <p>
-              Theo dõi các đơn đặt sân,
-              thời gian thi đấu và trạng
-              thái xác nhận của bạn.
-            </p>
-
           </div>
 
 
@@ -419,16 +316,8 @@ function BookingHistory() {
         </section>
 
 
-        <section className="booking-history-stats">
-          {[
-            ["T\u1ed5ng \u0111\u01a1n",counts.total],["Ch\u1edd x\u00e1c nh\u1eadn",counts.pending],
-            ["\u0110\u00e3 x\u00e1c nh\u1eadn",counts.confirmed],["Ch\u1edd kh\u00e1ch \u0111\u1ebfn",counts.awaiting],
-            ["\u0110ang \u0111\u00e1",counts.inProgress],["\u0110\u00e3 k\u1ebft th\u00fac / h\u1ebft gi\u1edd",counts.ended],
-            ["Ho\u00e0n th\u00e0nh",counts.completed],["Kh\u00e1ch kh\u00f4ng \u0111\u1ebfn",counts.noShow],["\u0110\u00e3 h\u1ee7y",counts.cancelled]
-          ].map(([label,count])=><div key={label}><span>{label}</span><strong>{count}</strong></div>)}
-        </section>
-
         <section className="booking-history-toolbar">
+          <p className="booking-history-total">Tổng đơn: <strong>{allBookings.length}</strong></p>
 
           <label>
 

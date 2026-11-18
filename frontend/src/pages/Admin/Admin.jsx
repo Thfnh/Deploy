@@ -6,7 +6,6 @@ import {
   CircleX,
   Star,
   RefreshCw,
-  ArrowRight,
   Clock,
   BarChart3,
 } from "lucide-react";
@@ -281,7 +280,6 @@ export default function Admin() {
                 </strong>
                 <small>{hint}</small>
               </div>
-              <ArrowRight className="dash-metric-arrow" size={16} />
             </Link>
           ),
         )}
@@ -294,7 +292,7 @@ export default function Admin() {
               Lịch đặt sân hôm nay
             </h2>
             <Link to="/admin/bookings">
-              Xem tất cả <ArrowRight size={16} />
+              Xem tất cả
             </Link>
           </header>
           <ResourceState
@@ -342,10 +340,6 @@ export default function Admin() {
                 </tbody>
               </table>
             </div>
-            <p className="dash-note">
-              Tối đa 7 đơn theo giờ bắt đầu. Trạng thái đơn lấy từ backend, tách
-              biệt với trạng thái thanh toán và thời gian buổi đá.
-            </p>
           </ResourceState>
         </section>
         {isAdmin && (
@@ -414,9 +408,6 @@ export default function Admin() {
                 </div>
               )}
             </ResourceState>
-            <p className="dash-note">
-              Chuyển đến trang nghiệp vụ để duyệt hoặc phản hồi.
-            </p>
           </section>
         )}
       </div>
@@ -429,7 +420,7 @@ export default function Admin() {
                 Doanh thu 7 ngày gần nhất
               </h2>
               <Link to="/admin/reports">
-                Xem báo cáo <ArrowRight size={16} />
+                Xem báo cáo
               </Link>
             </header>
             <ResourceState resource={weekState} empty={false}>
@@ -437,10 +428,6 @@ export default function Admin() {
                 <RevenueChart rows={weekState.data.dailyRevenue} />
               )}
             </ResourceState>
-            <p className="dash-note">
-              VND · Theo ngày đá của đơn đặt sân. Tiền thực nhận trừ khoản đã hoàn;
-              doanh thu thuần có thể bằng 0 hoặc âm.
-            </p>
           </section>
           <section className="dash-card">
             <header>
@@ -481,10 +468,6 @@ export default function Admin() {
                 ))}
               </div>
             </ResourceState>
-            <p className="dash-note">
-              Giờ đặt đã xác nhận/hoàn thành, gộp khung giờ trùng; mẫu số 24
-              giờ/sân/ngày. Không phải tình trạng trống/đang đá thời gian thực.
-            </p>
           </section>
         </div>
       )}

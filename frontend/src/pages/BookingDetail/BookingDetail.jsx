@@ -338,6 +338,43 @@ export default function BookingDetail() {
               </span>
             </section>
 
+            {/* CUSTOMER INFORMATION */}
+
+            <section className="booking-detail-customer">
+              <h2>
+                Thông tin khách hàng
+              </h2>
+
+              <div>
+                <p>
+                  <span>Họ tên</span>
+                  <strong>
+                    {booking.CustomerName ||
+                      user.FullName ||
+                      "--"}
+                  </strong>
+                </p>
+
+                <p>
+                  <span>Email</span>
+                  <strong>
+                    {booking.Email ||
+                      user.Email ||
+                      "--"}
+                  </strong>
+                </p>
+
+                <p>
+                  <span>Số điện thoại</span>
+                  <strong>
+                    {booking.Phone ||
+                      user.Phone ||
+                      "--"}
+                  </strong>
+                </p>
+              </div>
+            </section>
+
             <BookingPaymentBadge booking={booking} />
 
 
@@ -414,43 +451,6 @@ export default function BookingDetail() {
 
 
             {status === "COMPLETED" && <ReviewPanel key={booking.BookingID} bookingId={booking.BookingID} />}
-
-            {/* CUSTOMER INFORMATION */}
-
-            <section className="booking-detail-customer">
-              <h2>
-                Thông tin khách hàng
-              </h2>
-
-              <div>
-                <p>
-                  <span>Họ tên</span>
-                  <strong>
-                    {booking.CustomerName ||
-                      user.FullName ||
-                      "--"}
-                  </strong>
-                </p>
-
-                <p>
-                  <span>Email</span>
-                  <strong>
-                    {booking.Email ||
-                      user.Email ||
-                      "--"}
-                  </strong>
-                </p>
-
-                <p>
-                  <span>Số điện thoại</span>
-                  <strong>
-                    {booking.Phone ||
-                      user.Phone ||
-                      "--"}
-                  </strong>
-                </p>
-              </div>
-            </section>
 
           </>
         )}
