@@ -1,0 +1,8 @@
+$kind: http-request
+name: 04- Định dạng ngày tháng không hợp lệ (Sai format YYYY-MM-DD)
+url: "{{baseUrl}}/api/admin/reports/summary?from=01-10-2026&to=31/10/2026"
+method: GET
+queryParams:
+  from: 01-10-2026
+  to: 31/10/2026
+order: 3000

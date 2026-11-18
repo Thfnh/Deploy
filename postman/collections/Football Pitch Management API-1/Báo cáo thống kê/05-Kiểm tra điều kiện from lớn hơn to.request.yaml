@@ -1,0 +1,7 @@
+$kind: http-request
+url: "{{baseUrl}}/api/admin/reports/summary?from=2026-10-31&to=2026-10-01"
+method: GET
+queryParams:
+  from: 2026-10-31
+  to: 2026-10-01
+order: 23000

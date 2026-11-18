@@ -1,0 +1,14 @@
+$kind: http-request
+name: "02: Kiểm tra quyền truy cập API với tài khoản ADMIN hợp lệ"
+url: "{{baseUrl}}/api/admin/reports/summary?from=2026-10-01&to=2026-10-31"
+method: GET
+queryParams:
+  - key: from
+    value: 2026-10-01
+    disabled: false
+    description: ""
+  - key: to
+    value: 2026-10-31
+    disabled: false
+    description: ""
+order: 2000
