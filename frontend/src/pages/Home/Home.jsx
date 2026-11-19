@@ -1,42 +1,13 @@
+import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 
 import footballField from "../../assets/images/football-field.jpg";
 import Navbar from "../../components/Navbar/Navbar";
 import Footer from "../../components/Footer/Footer";
-import FieldCard from "../../components/FieldCard/FieldCard";
+import { getTopRatedFields } from "../../services/review_service";
 
 import "./Home.css";
 
-
-const fields = [
-  {
-    image:
-      "https://images.unsplash.com/photo-1579952363873-27f3bade9f55?auto=format&fit=crop&w=900&q=80",
-    name: "Sân bóng Sport Link ABC",
-    address:
-      "Lô C12, Khu đô thị mới Phú Mỹ Hưng, Quận 7, TP. HCM",
-    price: "350.000đ",
-    type: "Sân 7 Người",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1553778263-73a83bab9b0c?auto=format&fit=crop&w=900&q=80",
-    name: "Sân bóng Victory XYZ",
-    address:
-      "Đường số 4, Thảo Điền, Quận 2, TP. Thủ Đức",
-    price: "280.000đ",
-    type: "Sân 5 Người",
-  },
-  {
-    image:
-      "https://images.unsplash.com/photo-1526232761682-d26e03ac148e?auto=format&fit=crop&w=900&q=80",
-    name: "Sân vận động Arena 789",
-    address:
-      "Phước Long B, Quận 9, TP. Thủ Đức, HCM",
-    price: "650.000đ",
-    type: "Sân 11 Người",
-  },
-];
 
 function CheckIcon() {
   return (
@@ -118,37 +89,20 @@ function ArrowRight() {
   );
 }
 
-function ArrowLeft() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="m15 18-6-6 6-6" />
-    </svg>
-  );
-}
-
-function ArrowNext() {
-  return (
-    <svg
-      width="20"
-      height="20"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-    >
-      <path d="m9 18 6-6-6-6" />
-    </svg>
-  );
-}
-
 function Home() {
+  const [featured, setFeatured] = useState({ status: "loading", fields: [] });
+
+  useEffect(() => {
+    const controller = new AbortController();
+    getTopRatedFields(controller.signal)
+      .then(fields => {
+        if (!controller.signal.aborted) setFeatured({ status: "ready", fields });
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setFeatured({ status: "error", fields: [] });
+      });
+    return () => controller.abort();
+  }, []);
   return (
     <div className="home">
       <Navbar />
@@ -252,41 +206,30 @@ function Home() {
             <div>
               <h2>Các sân bóng nổi bật</h2>
 
-              <p>
-                Những sân bóng được đánh giá cao nhất và
-                có lượt đặt thường xuyên từ các câu lạc bộ.
-              </p>
+              <p>Tối đa ba sân có điểm đánh giá trung bình cao nhất.</p>
             </div>
 
-            <div className="slider-buttons">
-              <button
-                type="button"
-                aria-label="Sân trước"
-              >
-                <ArrowLeft />
-              </button>
+          </div>
 
-              <button
-                type="button"
-                aria-label="Sân tiếp theo"
-              >
-                <ArrowNext />
-              </button>
+          {featured.status === "loading" && <p role="status">Đang tải sân nổi bật…</p>}
+          {featured.status === "error" && <p role="alert">Chưa tải được sân nổi bật.</p>}
+          {featured.status === "ready" && featured.fields.length === 0 && <p>Chưa có sân nào được đánh giá.</p>}
+          {featured.fields.length > 0 && (
+            <div className="field-grid">
+              {featured.fields.map(field => (
+                <article className="home-featured-card" key={field.fieldId}>
+                  <img src={footballField} alt="" loading="lazy" />
+                  <div className="home-featured-body">
+                    <h3>{field.name}</h3>
+                    <p>{[field.type, field.address].filter(Boolean).join(" · ")}</p>
+                    <p><strong><span aria-hidden="true">★ </span>{field.averageRating.toLocaleString("vi-VN")} / 5</strong>
+                      {" "}({field.reviewCount} đánh giá)</p>
+                    <Link to={`/fields/${field.fieldId}/reviews`}>Xem đánh giá của sân</Link>
+                  </div>
+                </article>
+              ))}
             </div>
-          </div>
-
-          <div className="field-grid">
-            {fields.map((field, index) => (
-              <FieldCard
-                key={index}
-                image={field.image}
-                name={field.name}
-                address={field.address}
-                price={field.price}
-                type={field.type}
-              />
-            ))}
-          </div>
+          )}
         </div>
       </section>
 

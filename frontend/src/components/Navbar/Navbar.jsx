@@ -204,12 +204,12 @@ function Navbar() {
           </NavLink>
 
 
-          <a
-            href="#contact"
-            className="navbar-link"
+          <NavLink
+            to="/contact"
+            className={({ isActive }) => isActive ? "navbar-link active" : "navbar-link"}
           >
             Liên hệ
-          </a>
+          </NavLink>
 
         </nav>
 

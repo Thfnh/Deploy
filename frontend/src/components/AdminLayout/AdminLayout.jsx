@@ -12,7 +12,7 @@ import {
 import "../../pages/Admin/Admin.css";
 import useReviewInbox from "../../hooks/useReviewInbox";
 import useCancellationInbox from "../../hooks/useCancellationInbox";
-import { Bell } from "lucide-react";
+import { Bell, ChevronRight, LogOut, UserRound } from "lucide-react";
 import "./CancellationNotification.css";
 
 
@@ -291,25 +291,11 @@ function AdminLayout() {
                     style={{marginLeft:8,background:"#fce9af",color:"#765000",borderRadius:12,padding:"2px 7px",fontSize:12}}>{reviewInbox.unansweredCount}</span>}
                 </li>
 
-                <li>
-                  Cài đặt
-                </li>
-
               </>
             )
           }
 
         </ul>
-
-
-        <div
-          className="logout"
-          onClick={
-            handleLogout
-          }
-        >
-          ↪ Đăng xuất
-        </div>
 
       </aside>
 
@@ -324,39 +310,20 @@ function AdminLayout() {
 
 
           <div className="admin-user">
-
-            <span>
-              🔔
-            </span>
-
-
-            <button type="button" className="admin-profile-button" onClick={() => navigate("/admin/profile")}
-              aria-label="Mở thông tin cá nhân">
-              <div>
-              <b>
-                {
-                  user?.FullName
-                  ||
-                  user?.Email
-                  ||
-                  "Tài khoản quản lý"
-                }
-              </b>
-
-
-              <small>
-
-                {
-                  role === "STAFF"
-                    ? "Nhân viên"
-                    : "Quản trị viên"
-                }
-
-              </small>
-              <small className="admin-profile-link">Thông tin cá nhân ↗</small>
-            </div>
+            <button type="button" className="admin-profile-button"
+              onClick={() => navigate("/admin/profile")} aria-label="Mở thông tin cá nhân">
+              <span className="admin-account-avatar" aria-hidden="true"><UserRound size={18} /></span>
+              <span className="admin-account-details">
+                <b>{user?.FullName || user?.Email || "Tài khoản quản lý"}</b>
+                <small>{role === "STAFF" ? "Nhân viên" : "Quản trị viên"}</small>
+              </span>
+              <ChevronRight className="admin-account-chevron" size={16} aria-hidden="true" />
             </button>
 
+            <button type="button" className="admin-header-logout" onClick={handleLogout}>
+              <LogOut size={17} aria-hidden="true" />
+              Đăng xuất
+            </button>
           </div>
 
         </div>

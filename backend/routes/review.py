@@ -5,7 +5,7 @@ import pyodbc
 
 from services.jwt_service import current_user_id, jwt_required, role_required
 from services.payment_service import PaymentError
-from services.review_service import create_review, get_booking_review, list_field_reviews
+from services.review_service import create_review, get_booking_review, list_field_reviews, list_top_rated_fields
 
 review_bp = Blueprint("review", __name__)
 
@@ -32,6 +32,14 @@ def booking_reviews(booking_id):
             return jsonify(get_booking_review(current_user_id(), booking_id)), 200
         request.max_content_length = 16*1024
         return jsonify(create_review(current_user_id(), booking_id, request.get_json(silent=True))), 201
+    except Exception as error:
+        return _error(error)
+
+
+@review_bp.get("/fields/top-rated")
+def top_rated_fields():
+    try:
+        return jsonify(list_top_rated_fields()), 200
     except Exception as error:
         return _error(error)
 

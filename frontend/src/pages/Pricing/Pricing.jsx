@@ -231,9 +231,9 @@ function Pricing() {
                 Đặt sân ngay
               </Link>
 
-              <a href="#contact" className="cta-contact-btn">
+              <Link to="/contact" className="cta-contact-btn">
                 Liên hệ tư vấn
-              </a>
+              </Link>
             </div>
           </div>
         </section>

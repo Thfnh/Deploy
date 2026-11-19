@@ -8,6 +8,9 @@ export const submitBookingReview = (bookingId, rating, comment) =>
     method: "POST", body: JSON.stringify({ rating, comment }),
   });
 
+export const getTopRatedFields = (signal) =>
+  apiRequest("/api/fields/top-rated", { auth: false, signal });
+
 export const getFieldReviews = (fieldId, page = 1, options = {}) =>
   apiRequest(`/api/fields/${encodeURIComponent(fieldId)}/reviews?page=${page}&pageSize=10`, {
     ...options, auth: false,
