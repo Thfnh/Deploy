@@ -19,5 +19,8 @@ const normalizeInvoice = (invoice) => {
 export const getInvoice = (invoiceId) =>
   apiRequest(`/api/invoices/${encodeURIComponent(invoiceId)}`).then(normalizeInvoice);
 
+export const getInvoicePdf = (invoiceId, signal) =>
+  apiRequest(`/api/invoices/${encodeURIComponent(invoiceId)}/pdf`, { responseType: "blob", signal });
+
 export const getBookingInvoice = (bookingId) =>
   apiRequest(`/api/bookings/${encodeURIComponent(bookingId)}/invoice`).then(normalizeInvoice);

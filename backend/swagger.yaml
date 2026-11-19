@@ -520,6 +520,27 @@ paths:
               status: CANCELLED
               reason: Booking cancelled without any receipts
 
+  /api/invoices/{invoiceId}/pdf:
+    get:
+      tags: [Invoice]
+      summary: Mở hóa đơn đã thanh toán đủ dưới dạng PDF A4
+      security: [{ BearerAuth: [] }]
+      parameters:
+        - name: invoiceId
+          in: path
+          required: true
+          schema: {type: integer}
+      responses:
+        '200':
+          description: PDF để xem, tải hoặc in
+          content:
+            application/pdf:
+              schema: {type: string, format: binary}
+        '401': {description: Thiếu hoặc sai JWT}
+        '403': {description: Không có quyền xem hóa đơn}
+        '404': {description: Không tìm thấy hóa đơn}
+        '409': {description: Hóa đơn chưa thanh toán đủ}
+        '500': {description: Không thể tạo PDF hóa đơn}
   /api/invoices/{invoiceId}:
     get:
       tags:

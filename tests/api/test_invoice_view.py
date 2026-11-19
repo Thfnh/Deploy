@@ -34,7 +34,7 @@ class InvoiceViewTests(unittest.TestCase):
                       InvoicePaidAmount=0, InvoicePaymentStatus="UNPAID",
                       BookingDate=date(2026, 11, 6), StartTime=time(18), EndTime=time(19),
                       FieldID=5, FieldName="Archived field", FieldType="5", Location="Test",
-                      CreatedDate=None)
+                      CreatedDate=None, CustomerName="Nguyễn Ánh")
         values.update(changes)
         return SimpleNamespace(**values)
 
@@ -99,6 +99,44 @@ class InvoiceViewTests(unittest.TestCase):
                         self.assertEqual(data["remainingAmount"], 100000 - deposit - final)
                         self.assertEqual(data["fieldName"], "Archived field")
                         self.assert_read_only()
+
+    def test_pdf_is_inline_a4_and_read_only_for_owner_and_admin(self):
+        for role, user_id in (("CUSTOMER", 1), ("ADMIN", 2)):
+            with self.subTest(role=role):
+                self.connection.reset_mock()
+                self.seed(self.row(InvoicePaymentStatus="PAID", InvoicePaidAmount=100000),
+                          role=role, deposit=30000, final=70000)
+                response = self.get("/api/invoices/20/pdf", user_id=user_id, role=role)
+                self.assertEqual(response.status_code, 200)
+                self.assertEqual(response.mimetype, "application/pdf")
+                self.assertIn("inline; filename=hoa-don-20.pdf", response.headers["Content-Disposition"])
+                self.assertIn("no-store", response.headers["Cache-Control"])
+                self.assertTrue(response.data.startswith(b"%PDF"))
+                self.assertIn(b"/MediaBox [ 0 0 595.2756 841.8898 ]", response.data)
+                self.assertIn(b"/ToUnicode", response.data)
+                self.assert_read_only()
+
+    def test_pdf_rejects_wrong_owner_unpaid_and_missing_invoices(self):
+        path = "/api/invoices/20/pdf"
+        with patch("routes.invoice.render_invoice_pdf") as render:
+            self.seed(self.row(UserID=2), deposit=30000, final=70000)
+            self.assertEqual(self.get(path).status_code, 403)
+            self.seed(self.row(), deposit=30000)
+            response = self.get(path)
+            self.assertEqual(response.status_code, 409)
+            self.assertEqual(response.json["code"], "INVOICE_NOT_PAID")
+            self.seed(None)
+            self.assertEqual(self.get(path).status_code, 404)
+            render.assert_not_called()
+        self.connection.commit.assert_not_called()
+
+    def test_pdf_render_failure_leaves_payment_untouched(self):
+        self.seed(self.row(), deposit=30000, final=70000)
+        with patch("routes.invoice.render_invoice_pdf", side_effect=RuntimeError), self.assertLogs(level="ERROR"):
+            response = self.get("/api/invoices/20/pdf")
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.json["code"], "INVOICE_PDF_FAILED")
+        self.assert_read_only()
 
     def test_customer_cannot_view_other_customers_invoice(self):
         for path in ("/api/invoices/20", "/api/bookings/10/invoice"):
