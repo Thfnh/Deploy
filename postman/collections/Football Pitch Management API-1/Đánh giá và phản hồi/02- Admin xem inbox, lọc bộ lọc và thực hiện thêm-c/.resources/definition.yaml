@@ -1,0 +1,9 @@
+$kind: collection
+name: "02: Admin xem inbox, lọc bộ lọc và thực hiện thêm/cập nhật phản hồi (Reply)"
+auth:
+  - id: 58313b9e-339a-4ec9-b7cd-ba02b3330844
+    type: bearer
+    name: Bearer Token
+    credentials:
+      token: "{{accessToken}}"
+order: 3000

@@ -1,0 +1,5 @@
+$kind: http-request
+name: Gọi API cho sân bị Archive/Missing hoặc truyền tham số phân trang sai quy định.
+url: ""
+method: GET
+order: 3000

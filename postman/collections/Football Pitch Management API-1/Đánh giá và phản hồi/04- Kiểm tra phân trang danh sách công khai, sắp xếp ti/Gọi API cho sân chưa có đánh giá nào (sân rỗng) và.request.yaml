@@ -1,0 +1,5 @@
+$kind: http-request
+name: Gọi API cho sân chưa có đánh giá nào (sân rỗng) và kiểm tra nội dung response.
+url: ""
+method: GET
+order: 2000

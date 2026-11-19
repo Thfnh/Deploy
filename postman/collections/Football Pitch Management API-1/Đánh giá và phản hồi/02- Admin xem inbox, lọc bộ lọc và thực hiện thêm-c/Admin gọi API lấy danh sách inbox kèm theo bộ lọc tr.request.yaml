@@ -1,0 +1,10 @@
+$kind: http-request
+name: Admin gọi API lấy danh sách inbox kèm theo bộ lọc trạng thái và rating.
+url: "{{baseUrl}}/api/admin/reviews?page=1&pageSize=10&status=unanswered&rating=5"
+method: GET
+queryParams:
+  page: "1"
+  pageSize: "10"
+  status: unanswered
+  rating: "5"
+order: 1000

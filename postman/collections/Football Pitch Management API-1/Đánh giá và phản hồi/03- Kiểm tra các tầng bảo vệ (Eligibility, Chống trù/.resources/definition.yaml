@@ -1,0 +1,9 @@
+$kind: collection
+name: "03: Kiểm tra các tầng bảo vệ (Eligibility, Chống trùng lặp và Validation dữ liệu khách hàng)"
+auth:
+  - id: 75322ac3-f718-4969-813e-3ac9658d128d
+    type: bearer
+    name: Bearer Token
+    credentials:
+      token: "{{accessToken}}"
+order: 4000
