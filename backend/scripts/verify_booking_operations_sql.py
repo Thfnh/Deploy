@@ -187,7 +187,12 @@ def main():
                 return_value=datetime(2026, 11, 16, 8, 0),
             ):
                 blocked(24, "no-show", "CANCELLATION_PENDING")
-                operate(1, 23, "no-show", "Prepaid customer did not arrive")
+                blocked(23, "no-show", "NO_SHOW_BOOKING_PAID")
+                sql("SELECT Status FROM dbo.Bookings WHERE BookingID=23")
+                assert cur.fetchone()[0] == "CONFIRMED"
+                sql("UPDATE dbo.Bookings SET TotalAmount=500 WHERE BookingID=23")
+                owner.commit()
+                operate(1, 23, "no-show", "Partially prepaid customer did not arrive")
                 sql("""
                     SELECT RefundStatus,DepositPaid FROM
                     dbo.BookingCancellations WHERE BookingID=23

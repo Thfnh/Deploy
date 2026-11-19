@@ -3,6 +3,7 @@ import os
 import sys
 import unittest
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace as Row
 from unittest.mock import MagicMock, patch
@@ -29,6 +30,52 @@ class BookingOperationTests(unittest.TestCase):
             response=app.test_client().post("/api/admin/bookings/10/operations/check-in",json={},headers={"Authorization":"Bearer "+create_access_token(1,"ADMIN")})
             self.assertEqual(response.status_code,200)
             write.assert_called_once_with(1,10,"check-in","")
+
+    def test_no_show_enforces_net_payment_balance_in_the_api(self):
+        app = Flask(__name__)
+        app.register_blueprint(booking_operations_bp, url_prefix="/api")
+        booking = Row(Status="CONFIRMED", BookingDate="2026-11-16", StartTime="06:00",
+                      EndTime="08:00", TotalAmount=Decimal("400"))
+        cases = [
+            (400, None, 409),
+            (401, None, 409),
+            (399, None, 200),
+            (400, Row(Amount=Decimal("30")), 200),
+        ]
+        with patch.dict(os.environ, {"JWT_SECRET": "operations-fixture"}), \
+             patch("services.booking_operations.rules._check_actor", return_value="ADMIN"), \
+             patch("services.booking_operations.rules._get_booking", return_value=booking) as load_booking, \
+             patch("services.booking_operations.rules._booking_now", return_value=datetime(2026, 11, 16, 8)), \
+             patch("services.booking_operations.record_event") as record, \
+             patch("services.booking_operations.store_cancellation") as cancellation:
+            headers = {"Authorization": "Bearer " + create_access_token(1, "ADMIN")}
+            for paid, refund, expected in cases:
+                with self.subTest(paid=paid, refund=refund):
+                    record.reset_mock()
+                    cancellation.reset_mock()
+                    conn = MagicMock()
+                    cur = conn.cursor.return_value
+                    cur.fetchone.side_effect = [None, (100, 1, paid, 0), refund]
+                    cur.fetchall.return_value = []
+                    with patch("services.booking_operations.get_connection", return_value=conn):
+                        response = app.test_client().post(
+                            "/api/admin/bookings/10/operations/no-show",
+                            json={"reason": "Customer did not arrive"}, headers=headers,
+                        )
+                    self.assertEqual(response.status_code, expected)
+                    load_booking.assert_called_with(cur, 10, lock=True)
+                    if expected == 409:
+                        self.assertEqual(response.json["code"], "NO_SHOW_BOOKING_PAID")
+                        conn.rollback.assert_called_once()
+                        conn.commit.assert_not_called()
+                        record.assert_not_called()
+                        cancellation.assert_not_called()
+                        self.assertFalse(any("UPDATE" in call.args[0].upper().split()
+                                             for call in cur.execute.call_args_list))
+                    else:
+                        conn.commit.assert_called_once()
+                        record.assert_called_once()
+                        cancellation.assert_called_once()
 
     def test_unsafe_correction_input_does_not_open_database(self):
         with patch("services.booking_operations.get_connection") as db:

@@ -192,19 +192,6 @@ function Navbar() {
 
 
           <NavLink
-            to="/pricing"
-            className={
-              ({ isActive }) =>
-                isActive
-                  ? "navbar-link active"
-                  : "navbar-link"
-            }
-          >
-            Bảng giá
-          </NavLink>
-
-
-          <NavLink
             to="/about"
             className={
               ({ isActive }) =>
