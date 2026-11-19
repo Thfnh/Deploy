@@ -258,28 +258,13 @@ body{
 
 
 
-.admin-user{
-
-
-    display:flex;
-
-    align-items:center;
-
-    gap:15px;
-
-
+.admin-user {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
+    min-width: 0;
 }
-
-
-
-.admin-user span{
-
-
-    font-size:22px;
-
-
-}
-
 
 
 
@@ -1118,27 +1103,58 @@ width:220px;
     margin-left:0;
 }
 
-.admin-profile-button {
-    padding: 8px 12px;
-    border: 1px solid transparent;
-    border-radius: 12px;
-    background: transparent;
+.admin-user :is(.admin-profile-button, .admin-header-logout) {
+    display: inline-flex;
+    align-items: center;
+    gap: 9px;
+    min-height: 44px;
+    padding: 6px 10px;
+    border: 1px solid #dcebe2;
+    border-radius: 10px;
+    background: #fff;
+    color: #17392f;
+    font: inherit;
     text-align: left;
-    color: inherit;
     cursor: pointer;
 }
-.admin-profile-button:hover {
-    background: #eff8f3;
-    border-color: #dcebe2;
+.admin-user .admin-profile-button { min-width: 0; }
+.admin-user .admin-profile-button:hover { background: #eff8f3; }
+.admin-account-avatar {
+    display: grid;
+    place-items: center;
+    flex: 0 0 32px;
+    height: 32px;
+    border-radius: 50%;
+    background: #e2f4e8;
+    color: #087451;
 }
-.admin-user .admin-profile-link {
-    display: block;
-    margin-top: 4px;
-    color: #087f5b;
-    font-size: 11px;
-    font-weight: 600;
+.admin-account-details { min-width: 0; }
+.admin-account-details b {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.admin-account-details small { display: block; }
+.admin-account-chevron { flex-shrink: 0; color: #536e64; }
+.admin-user .admin-header-logout {
+    flex-shrink: 0;
+    color: #9b2727;
+    font-size: 13px;
+    font-weight: 650;
+}
+.admin-user .admin-header-logout:hover {
+    background: #fef1f1;
+    border-color: #f6d5d5;
+}
+.admin-user button:focus-visible {
+    outline: 2px solid #087451;
+    outline-offset: 2px;
 }
 
+@media (max-width: 600px) {
+    .admin-user { width: 100%; justify-content: space-between; }
+}
 
 @media(max-width:700px){
     .booking-detail-grid{
