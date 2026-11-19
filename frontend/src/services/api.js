@@ -63,6 +63,7 @@ export const apiRequest = async (
   const {
     auth = true,
     redirectOnUnauthorized = true,
+    responseType = "json",
     headers = {},
     ...fetchOptions
   } = options;
@@ -127,7 +128,11 @@ export const apiRequest = async (
     );
 
 
-  let data = null;
+  if (response.ok && responseType === "blob") {
+    return response.blob();
+  }
+
+  let data;
 
   try {
     data =

@@ -16,7 +16,7 @@ def get_invoice(user_id, *, invoice_id=None, booking_id=None):
         cursor.execute(f"""
             SELECT B.BookingID, B.UserID, B.TotalAmount, B.Status,
                    B.BookingDate, B.StartTime, B.EndTime, B.FieldID,
-                   F.FieldName, F.FieldType, F.Location,
+                   F.FieldName, F.FieldType, F.Location, U.FullName AS CustomerName,
                    I.InvoiceID, I.Amount AS InvoiceAmount,
                    I.PaidAmount AS InvoicePaidAmount,
                    I.PaymentStatus AS InvoicePaymentStatus, I.CreatedDate,
@@ -24,6 +24,7 @@ def get_invoice(user_id, *, invoice_id=None, booking_id=None):
             FROM Bookings B
             LEFT JOIN Invoices I ON I.BookingID = B.BookingID
             LEFT JOIN FootballFields F ON F.FieldID = B.FieldID
+            LEFT JOIN Users U ON U.UserID = B.UserID
             LEFT JOIN dbo.BookingDepositRefunds R ON R.BookingID=B.BookingID
             OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
                          WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED') ORDER BY EventID DESC) Attendance
@@ -57,6 +58,7 @@ def get_invoice(user_id, *, invoice_id=None, booking_id=None):
             "bookingDate": str(row.BookingDate),
             "startTime": str(row.StartTime)[:5], "endTime": str(row.EndTime)[:5],
             "createdDate": database_iso(row.CreatedDate) if row.CreatedDate else None,
+            "customerName": getattr(row, "CustomerName", None),
             "refundedAmount": float(refund.Amount) if refund else 0,
         })
         return info
