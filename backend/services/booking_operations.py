@@ -390,16 +390,21 @@ def operate(actor, booking_id, action, reason=""):
                         409,
                         "NO_SHOW_NOT_ALLOWED",
                     )
+                payments = rules._payment_summary(cur, booking_id)
                 cur.execute(
-                    """
-                    SELECT COALESCE(SUM(Amount),0) FROM dbo.Payments WHERE
-                    BookingID=? AND Status= 'SUCCESS' AND PaymentType IN (
-                    'DEPOSIT' , 'FINAL_PAYMENT' , 'EXTRA' )
-                    """,
+                    "SELECT Amount FROM dbo.BookingDepositRefunds WHERE BookingID=?",
                     booking_id,
                 )
-                received = cur.fetchone()[0] or 0
-                deposit, _ = rules._payment_summary(cur, booking_id)
+                refund = cur.fetchone()
+                refunded = refund.Amount if refund else 0
+                received = payments.total_paid
+                if booking.TotalAmount is not None and received - refunded >= booking.TotalAmount:
+                    raise PaymentError(
+                        "Đơn đã thanh toán đủ, không thể đánh dấu khách không đến.",
+                        409,
+                        "NO_SHOW_BOOKING_PAID",
+                    )
+                deposit = payments[0]
                 refundable = max(received - deposit, 0)
                 cur.execute(
                     """
