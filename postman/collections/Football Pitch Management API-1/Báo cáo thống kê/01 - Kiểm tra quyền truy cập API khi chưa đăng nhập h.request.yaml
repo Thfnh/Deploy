@@ -1,0 +1,7 @@
+$kind: http-request
+name: 01 - Kiểm tra quyền truy cập API khi chưa đăng nhập hoặc không phải ADMIN
+url: "{{baseUrl}}/api/admin/reports/summary"
+method: GET
+auth:
+  type: noauth
+order: 1000

@@ -1,0 +1,8 @@
+$kind: http-request
+name: Admin gọi API tiếp tục chỉnh sửa/cập nhật nội dung phản hồi đó.
+url: "{{baseUrl}}/api/admin/reviews/1/reply"
+method: PUT
+body:
+  type: json
+  content: '{  "comment": "Cảm ơn bạn, chủ sân đã ghi nhận góp ý."}'
+order: 3000

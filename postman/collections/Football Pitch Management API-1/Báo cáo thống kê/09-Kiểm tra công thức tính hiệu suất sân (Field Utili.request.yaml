@@ -1,0 +1,8 @@
+$kind: http-request
+name: 09-Kiểm tra công thức tính hiệu suất sân (Field Utilization)
+url: "{{baseUrl}}/api/admin/reports/summary?from=2026-10-01&to=2026-10-31"
+method: GET
+queryParams:
+  from: 2026-10-01
+  to: 2026-10-31
+order: 28000

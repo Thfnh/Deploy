@@ -1,0 +1,5 @@
+$kind: http-request
+name: Gọi API lấy danh sách đánh giá công khai cho sân có nhiều review với các tham số phân trang.
+url: ""
+method: GET
+order: 1000

@@ -1,0 +1,14 @@
+$kind: http-request
+name: Khách hàng gửi request đánh giá booking chưa hoàn thành hoặc booking thuộc sở hữu của người khác.
+url: "{{baseUrl}}/api/bookings/45/reviews"
+method: POST
+body:
+  type: json
+  content: "{  \r
+
+    \    \"rating\": 5,\r
+
+    \    \"comment\": \"Sân cỏ nhân tạo cực kỳ chất lượng, đèn sáng và đúng giờ!\"\r
+
+    }"
+order: 1000

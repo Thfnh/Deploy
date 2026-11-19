@@ -1,0 +1,9 @@
+$kind: collection
+name: "01: Khách hàng gửi đánh giá thành công và người dùng khác xem được trên danh sách công khai"
+auth:
+  - id: dfdca05e-2504-478c-b5a1-3f447f293be4
+    type: bearer
+    name: Bearer Token
+    credentials:
+      token: "{{accessToken}}"
+order: 2000

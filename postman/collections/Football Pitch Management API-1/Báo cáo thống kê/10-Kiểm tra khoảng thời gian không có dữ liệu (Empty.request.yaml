@@ -1,0 +1,8 @@
+$kind: http-request
+name: 10-Kiểm tra khoảng thời gian không có dữ liệu (Empty period)
+url: "{{baseUrl}}/api/admin/reports/summary?from=2030-01-01&to=2030-01-31"
+method: GET
+queryParams:
+  from: 2030-01-01
+  to: 2030-01-31
+order: 25000

@@ -1,0 +1,14 @@
+$kind: http-request
+name: Khách hàng A gửi request POST để đánh giá booking COMPLETED của mình.
+url: "{{baseUrl}}/api/bookings/46/reviews"
+method: POST
+body:
+  type: json
+  content: "{  \r
+
+    \    \"rating\": 5,\r
+
+    \    \"comment\": \"Sân cỏ nhân tạo cực kỳ chất lượng, đèn sáng và đúng giờ!\"\r
+
+    }"
+order: 1000

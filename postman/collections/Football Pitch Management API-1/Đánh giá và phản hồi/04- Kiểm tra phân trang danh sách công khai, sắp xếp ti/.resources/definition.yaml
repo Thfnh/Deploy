@@ -1,0 +1,9 @@
+$kind: collection
+name: "04: Kiểm tra phân trang danh sách công khai, sắp xếp timestamp và xử lý ngoại lệ sân bóng"
+auth:
+  - id: 723e98ee-6681-4b7b-8ad1-481d92ae28bf
+    type: bearer
+    name: Bearer Token
+    credentials:
+      token: "{{accessToken}}"
+order: 5000

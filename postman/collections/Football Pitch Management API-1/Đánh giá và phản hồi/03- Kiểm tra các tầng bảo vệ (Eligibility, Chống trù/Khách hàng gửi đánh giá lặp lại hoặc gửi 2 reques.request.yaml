@@ -1,0 +1,62 @@
+$kind: http-request
+name: Khách hàng gửi đánh giá lặp lại hoặc gửi 2 request đồng thời cho cùng một booking COMPLETED.
+url: "{{baseUrl}}/api/bookings/37/reviews"
+method: POST
+body:
+  type: json
+  content: "{  \r
+
+    \    \"rating\": 5,\r
+
+    \    \"comment\": \"Sân cỏ nhân tạo cực kỳ chất lượng, đèn sáng và đúng giờ!\"\r
+
+    }"
+scripts:
+  - type: afterResponse
+    code: "pm.test(\"Kiểm tra mã trạng thái HTTP hợp lệ cho Duplicate Review (201 hoặc 409)\", function () {\r
+
+      \    // Chấp nhận 201 (Tạo mới thành công) hoặc 409 (Đã tồn tại review do gửi lặp)\r
+
+      \    pm.expect(pm.response.code).to.be.oneOf([201, 409]);\r
+
+      });\r
+
+      \r
+
+      if (pm.response.code === 201) {\r
+
+      \    pm.test(\"Trường hợp tạo review lần đầu (201 Created)\", function () {\r
+
+      \        var jsonData = pm.response.json();\r
+
+      \        pm.expect(jsonData).to.have.property('reviewId');\r
+
+      \        pm.expect(jsonData).to.have.property('bookingId');\r
+
+      \        pm.expect(jsonData.rating).to.be.a('number');\r
+
+      \        \r
+
+      \        // Lưu reviewId vào biến môi trường nếu cần dùng cho các bước sau\r
+
+      \        pm.environment.set(\"created_review_id\", jsonData.reviewId);\r
+
+      \    });\r
+
+      } else if (pm.response.code === 409) {\r
+
+      \    pm.test(\"Trường hợp gửi lặp review bị từ chối đúng chuẩn (409 Conflict)\", function () {\r
+
+      \        var jsonData = pm.response.json();\r
+
+      \        // Kiểm tra thông điệp hoặc mã lỗi trả về từ API (tùy thuộc vào cấu trúc trả lỗi của backend)\r
+
+      \        // Ví dụ: message hoặc error code chứa 'REVIEW_ALREADY_EXISTS'\r
+
+      \        console.log(\"Đã chặn thành công request trùng lặp với mã 409.\");\r
+
+      \    });\r
+
+      }"
+    language: text/javascript
+order: 2000

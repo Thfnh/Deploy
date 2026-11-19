@@ -1,0 +1,5 @@
+$kind: http-request
+name: Gửi request review với dữ liệu payload sai lệch (sai định dạng rating, comment rỗng/quá dài, body array/null hoặc vượt quá 16 KB).
+url: ""
+method: GET
+order: 3000
