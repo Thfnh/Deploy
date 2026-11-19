@@ -146,6 +146,54 @@ def get_booking_review(user_id, booking_id):
         conn.close()
 
 
+def _eligible_reviews_sql():
+    predicate = completion_sql("B.Status", "B.TotalAmount", "COALESCE(P.Paid,0)-COALESCE(F.Refunded,0)", BOOKING_END_SQL, "Attendance.EventType")
+    return """FROM dbo.BookingReviews R JOIN dbo.Bookings B ON B.BookingID=R.BookingID
+        AND B.UserID=R.UserID AND B.FieldID=R.FieldID
+        OUTER APPLY (SELECT SUM(Amount) AS Paid FROM dbo.Payments
+            WHERE BookingID=B.BookingID AND Status='SUCCESS' AND Amount>0
+            AND PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA')) P
+        OUTER APPLY (SELECT SUM(Amount) AS Refunded FROM dbo.BookingDepositRefunds
+            WHERE BookingID=B.BookingID AND Amount>0) F
+        OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
+            WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED')
+            ORDER BY EventID DESC) Attendance
+        WHERE """ + predicate
+
+
+def list_top_rated_fields():
+    conn = _connection()
+    cursor = None
+    try:
+        cursor = conn.cursor()
+        eligible = _eligible_reviews_sql()
+        cursor.execute(f"""
+            WITH Ratings AS (
+                SELECT R.FieldID, COUNT(*) AS ReviewCount,
+                       AVG(CAST(R.Rating AS DECIMAL(8,2))) AS AverageRating
+                {eligible}
+                GROUP BY R.FieldID
+            )
+            SELECT TOP (3) S.FieldID, S.FieldName, S.FieldType, S.Location,
+                   Ratings.ReviewCount, Ratings.AverageRating
+            FROM Ratings
+            JOIN dbo.FootballFields S ON S.FieldID=Ratings.FieldID
+            WHERE S.IsArchived=0
+            ORDER BY Ratings.AverageRating DESC, Ratings.ReviewCount DESC, S.FieldID
+        """)
+        return [
+            {"fieldId": int(row.FieldID), "name": row.FieldName,
+             "type": row.FieldType, "address": row.Location,
+             "reviewCount": int(row.ReviewCount),
+             "averageRating": round(float(row.AverageRating), 2)}
+            for row in cursor.fetchall()
+        ]
+    finally:
+        if cursor is not None:
+            cursor.close()
+        conn.close()
+
+
 def list_field_reviews(field_id, page, page_size):
     conn = _connection()
     cursor = None
@@ -155,18 +203,7 @@ def list_field_reviews(field_id, page, page_size):
         field = cursor.fetchone()
         if field is None:
             raise PaymentError("Không tìm thấy sân bóng", 404, "FIELD_NOT_FOUND")
-        predicate = completion_sql("B.Status", "B.TotalAmount", "COALESCE(P.Paid,0)-COALESCE(F.Refunded,0)", BOOKING_END_SQL, "Attendance.EventType")
-        eligible = """FROM dbo.BookingReviews R JOIN dbo.Bookings B ON B.BookingID=R.BookingID
-            AND B.UserID=R.UserID AND B.FieldID=R.FieldID
-            OUTER APPLY (SELECT SUM(Amount) AS Paid FROM dbo.Payments
-                WHERE BookingID=B.BookingID AND Status='SUCCESS' AND Amount>0
-                AND PaymentType IN ('DEPOSIT','FINAL_PAYMENT','EXTRA')) P
-            OUTER APPLY (SELECT SUM(Amount) AS Refunded FROM dbo.BookingDepositRefunds
-                WHERE BookingID=B.BookingID AND Amount>0) F
-            OUTER APPLY (SELECT TOP(1) EventType FROM dbo.BookingOperationEvents
-                WHERE BookingID=B.BookingID AND EventType IN ('CHECKED_IN','NO_SHOW','CANCELLATION_RESTORED')
-                ORDER BY EventID DESC) Attendance
-            WHERE R.FieldID=? AND """ + predicate
+        eligible = _eligible_reviews_sql() + " AND R.FieldID=?"
         cursor.execute("SELECT COUNT(*),AVG(CAST(R.Rating AS DECIMAL(8,2))) " + eligible, field_id)
         count, average = cursor.fetchone()
         cursor.execute("""SELECT R.ReviewID,R.Rating,R.Comment,R.CreatedAt """ + eligible + """

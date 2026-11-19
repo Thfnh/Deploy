@@ -2,9 +2,9 @@ import { Link } from "react-router-dom";
 import "./Footer.css";
 import logoIcon from "../../assets/icons/ball.png";
 
-function Footer() {
+function Footer({ showContactColumn = true }) {
   return (
-    <footer className="footer">
+    <footer className={showContactColumn ? "footer" : "footer footer-compact"}>
       <div className="footer-container">
         <div className="footer-main">
           {/* Logo + description */}
@@ -69,7 +69,7 @@ function Footer() {
 
           {/* Contact */}
 
-          <div className="footer-column contact-column">
+          {showContactColumn && <div className="footer-column contact-column">
             <h3>Liên hệ</h3>
 
             <p>Hotline: 1900 1234</p>
@@ -78,7 +78,7 @@ function Footer() {
               Địa chỉ: Quận 7, TP. Hồ Chí Minh
             </p>
             <p>Hợp tác nhượng quyền</p>
-          </div>
+          </div>}
         </div>
 
         <div className="footer-bottom">

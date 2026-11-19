@@ -36,6 +36,7 @@ import AdminLayout
 
 import About
   from "../pages/About/About";
+import Contact from "../pages/Contact/Contact";
 
 import Booking
   from "../pages/Booking/Booking";
@@ -110,6 +111,7 @@ function AppRoutes() {
         }
       />
       <Route path="/fields/:fieldId/reviews" element={<FieldReviews />} />
+      <Route path="/contact" element={<Contact />} />
 
 
       <Route
