@@ -120,17 +120,19 @@ jobs:
               exit 1
             }
 
-            # Require exactly four unique, recognized keys.
+            # Match the state format shared by project1-switch-env and project1-rollback.
             awk -F= '
               NF != 2 { exit 1 }
-              $1 !~ /^(CURRENT_IMAGE|CURRENT_COMMIT|PREVIOUS_IMAGE|PREVIOUS_COMMIT)$/ { exit 1 }
+              $1 !~ /^(CURRENT_IMAGE|CURRENT_COMMIT|CURRENT_ENV|PREVIOUS_IMAGE|PREVIOUS_COMMIT|PREVIOUS_ENV)$/ { exit 1 }
               seen[$1]++ { exit 1 }
               END {
-                if (NR != 4) exit 1
+                if (NR != 6) exit 1
                 if (seen["CURRENT_IMAGE"] != 1 ||
                     seen["CURRENT_COMMIT"] != 1 ||
+                    seen["CURRENT_ENV"] != 1 ||
                     seen["PREVIOUS_IMAGE"] != 1 ||
-                    seen["PREVIOUS_COMMIT"] != 1) exit 1
+                    seen["PREVIOUS_COMMIT"] != 1 ||
+                    seen["PREVIOUS_ENV"] != 1) exit 1
               }
             ' "$STATE_FILE" || {
               echo "Invalid deployment-state format."
@@ -152,8 +154,15 @@ jobs:
 
             recorded_image=$(state_value CURRENT_IMAGE)
             previous_commit=$(state_value CURRENT_COMMIT)
+            current_env=$(state_value CURRENT_ENV)
             recorded_previous_image=$(state_value PREVIOUS_IMAGE)
             recorded_previous_commit=$(state_value PREVIOUS_COMMIT)
+            recorded_previous_env=$(state_value PREVIOUS_ENV)
+
+            if [ "$current_env" != "staging" ]; then
+              echo "Deployment stopped: deployment-state does not mark Staging as active."
+              exit 1
+            fi
 
             # Validate image IDs and commit identifiers.
             if ! printf '%s\n' "$recorded_image" | grep -Eq '^sha256:[a-f0-9]{64}$'; then
@@ -167,13 +176,15 @@ jobs:
             fi
 
             if [ "$recorded_previous_image" = "NONE" ] &&
-               [ "$recorded_previous_commit" = "NONE" ]; then
+               [ "$recorded_previous_commit" = "NONE" ] &&
+               [ "$recorded_previous_env" = "NONE" ]; then
               :
             elif printf '%s\n' "$recorded_previous_image" | grep -Eq '^sha256:[a-f0-9]{64}$' &&
-                 printf '%s\n' "$recorded_previous_commit" | grep -Eq '^(unknown-baseline|[a-f0-9]{40}|[a-f0-9]{64})$'; then
+                 printf '%s\n' "$recorded_previous_commit" | grep -Eq '^(unknown-baseline|[a-f0-9]{40}|[a-f0-9]{64})$' &&
+                 printf '%s\n' "$recorded_previous_env" | grep -Eq '^(staging|rc|production)$'; then
               :
             else
-              echo "Invalid PREVIOUS_IMAGE/PREVIOUS_COMMIT pair."
+              echo "Invalid PREVIOUS_IMAGE/PREVIOUS_COMMIT/PREVIOUS_ENV combination."
               exit 1
             fi
 
@@ -370,8 +381,10 @@ jobs:
               if ! {
                 printf 'CURRENT_IMAGE=%s\n' "$new_image"
                 printf 'CURRENT_COMMIT=%s\n' "$DEPLOY_SHA"
+                printf 'CURRENT_ENV=%s\n' "$current_env"
                 printf 'PREVIOUS_IMAGE=%s\n' "$previous_image"
                 printf 'PREVIOUS_COMMIT=%s\n' "$previous_commit"
+                printf 'PREVIOUS_ENV=%s\n' "$current_env"
               } > "$tmp"; then
                 rm -f "$tmp"
                 return 1
