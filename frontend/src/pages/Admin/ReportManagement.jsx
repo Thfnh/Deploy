@@ -46,13 +46,19 @@ export default function ReportManagement() {
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
   }, [range, revision]);
-  const apply = event => {
-    event.preventDefault();
-    const start = Date.parse(draft.from), end = Date.parse(draft.to);
-    if (!Number.isFinite(start) || !Number.isFinite(end) || draft.from > draft.to || (end-start)/86400000 >= 366) {
-      setValidation("Chọn khoảng ngày hợp lệ, tối đa 366 ngày."); return;
+  const applyRange = next => {
+    setDraft(next);
+    const start = Date.parse(next.from), end = Date.parse(next.to);
+    if (!Number.isFinite(start) || !Number.isFinite(end) ||
+        next.from < "1900-01-01" || next.to > "9998-12-31" ||
+        start > end || (end - start) / 86400000 >= 366) {
+      setValidation("Chọn khoảng ngày hợp lệ, tối đa 366 ngày.");
+      return;
     }
-    setValidation(""); setLoading(true); setRange({ ...draft });
+    setValidation("");
+    setError("");
+    setLoading(true);
+    setRange(next);
   };
   const refresh = () => { setLoading(true); setRevision(value => value+1); };
   const exportReport = () => {
@@ -60,26 +66,24 @@ export default function ReportManagement() {
     const anchor = document.createElement("a"); anchor.href = url; anchor.download = `bao-cao-${result.from}-${result.to}.csv`;
     anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
   };
-  const ready = !loading && !error && result;
+  const ready = !loading && !validation && !error && result;
   const summaryTotal = result ? bookingGroupTotal(result.bookingLifecycleBreakdown) : null;
   return <section className="uc16-page" aria-busy={loading}>
     <header className="uc16-heading"><div><span className="uc16-eyebrow">HIỆU QUẢ HOẠT ĐỘNG</span><h1>Thống kê & báo cáo</h1></div>
       <button className="uc16-button secondary" disabled={!ready || summaryTotal===null} onClick={exportReport}><Download size={17} />Xuất CSV</button></header>
-    <form className="uc16-filter" onSubmit={apply}>
+    <div className="uc16-filter">
       <div className="uc16-filter-intro"><CalendarDays size={21} /><strong>Khoảng báo cáo</strong><small>Mặc định từ đầu tháng đến hôm nay · tối đa 366 ngày</small></div>
-      <label>Từ ngày<input type="date" name="from" required min="1900-01-01" max="9998-12-31" value={draft.from} onChange={e => setDraft({ ...draft, from: e.target.value })} /></label>
-      <label>Đến ngày<input type="date" name="to" required min="1900-01-01" max="9998-12-31" value={draft.to} onChange={e => setDraft({ ...draft, to: e.target.value })} /></label>
-      <button className="uc16-button" disabled={loading}>Xem báo cáo</button>
-      <button className="uc16-button secondary" type="button" disabled={loading} onClick={() => { const next = currentMonth(); setDraft(next); setRange(next); setLoading(true); setValidation(""); }}>Tháng này</button>
-      <button className="uc16-button secondary" type="button" disabled={loading} onClick={() => {
+      <label>Từ ngày<input type="date" name="from" required min="1900-01-01" max="9998-12-31" value={draft.from} onChange={e => applyRange({ ...draft, from: e.target.value })} /></label>
+      <label>Đến ngày<input type="date" name="to" required min="1900-01-01" max="9998-12-31" value={draft.to} onChange={e => applyRange({ ...draft, to: e.target.value })} /></label>
+      <button className="uc16-button secondary" type="button" onClick={() => applyRange(currentMonth())}>Tháng này</button>
+      <button className="uc16-button secondary" type="button" onClick={() => {
         const today = vietnamDate();
-        const next = { from: today, to: today };
-        setDraft(next); setRange(next); setLoading(true); setValidation("");
+        applyRange({ from: today, to: today });
       }}>Hôm nay</button>
-    </form>
+    </div>
     {validation && <p className="uc16-error" role="alert">{validation}</p>}
-    {loading && <div className="uc16-state" role="status"><RefreshCw size={24} />Đang tổng hợp báo cáo…</div>}
-    {!loading && error && <div className="uc16-state uc16-error" role="alert"><p>{error}</p><button className="uc16-button" onClick={refresh}>Thử lại</button></div>}
+    {loading && !validation && <div className="uc16-state" role="status"><RefreshCw size={24} />Đang tổng hợp báo cáo…</div>}
+    {!loading && !validation && error && <div className="uc16-state uc16-error" role="alert"><p>{error}</p><button className="uc16-button" onClick={refresh}>Thử lại</button></div>}
     {ready && <>
       <div className="uc16-period"><span>Kết quả: <strong>{result.from} — {result.to}</strong> · {result.dayCount} ngày</span>
         <button className="uc16-refresh" onClick={refresh}><RefreshCw size={15} />Làm mới</button></div>
