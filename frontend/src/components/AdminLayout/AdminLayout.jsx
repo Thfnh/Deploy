@@ -12,7 +12,7 @@ import {
 import "../../pages/Admin/Admin.css";
 import useReviewInbox from "../../hooks/useReviewInbox";
 import useCancellationInbox from "../../hooks/useCancellationInbox";
-import { Bell, ChevronRight, LogOut, UserRound } from "lucide-react";
+import { Bell, ChevronRight, LogOut, Menu, UserRound } from "lucide-react";
 import "./CancellationNotification.css";
 
 
@@ -63,6 +63,8 @@ function AdminLayout() {
   const location =
     useLocation();
 
+  const [openMenuLocation, setOpenMenuLocation] = useState(null);
+  const menuOpen = openMenuLocation === location.key;
 
   const [user] =
     useState(
@@ -189,7 +191,13 @@ function AdminLayout() {
         </h2>
 
 
-        <ul>
+        <button type="button" className="admin-menu-toggle" aria-expanded={menuOpen}
+          aria-controls="admin-navigation"
+          onClick={() => setOpenMenuLocation(menuOpen ? null : location.key)}>
+          <Menu size={20} aria-hidden="true" /> Menu
+        </button>
+
+        <ul id="admin-navigation" className={menuOpen ? "admin-nav-open" : undefined}>
 
           <li
             className={
