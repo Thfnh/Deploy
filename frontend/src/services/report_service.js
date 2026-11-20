@@ -21,8 +21,10 @@ export function bookingGroupTotal(breakdown) {
 export const getReportSummary = (range, options = {}) =>
   apiRequest(`/api/admin/reports/summary?${new URLSearchParams(range)}`, options);
 
-// Quote every cell and neutralize spreadsheet formulas in database text.
-export function reportCsv(report) {
+export async function reportXlsx(report) {
+  const { default: ExcelJS } = await import("exceljs");
+  const workbook = new ExcelJS.Workbook();
+  const sheet = workbook.addWorksheet("Báo cáo thống kê");
   const rows = [
     ["Báo cáo thống kê", report.from, report.to],
     ["Cơ sở ngày", "Ngày đá (BookingDate): tiền cọc, tiền thu tại sân và khoản hoàn của các đơn trong phạm vi"],
@@ -40,9 +42,11 @@ export function reportCsv(report) {
     ...report.fieldUtilization.map(row => [row.fieldId, row.fieldName, row.bookedHours, row.capacityHours, row.utilizationPercent]), [],
     ["Trạng thái hóa đơn", "Số lượng (theo ngày phát hành)"], ...Object.entries(report.invoiceStatusCount),
   ];
-  return "\uFEFF" + rows.map(row => row.map(value => {
-    let text = String(value ?? "");
-    if (typeof value === "string" && /^[\s]*[=+\-@\t\r]/.test(text)) text = "'" + text;
-    return `"${text.replaceAll('"', '""')}"`;
-  }).join(",")).join("\r\n");
+  sheet.columns = [58, 32, 30, 35, 18].map(width => ({ width }));
+  sheet.addRows(rows);
+  sheet.mergeCells("B2:E2");
+  sheet.getCell("B2").alignment = { wrapText: true };
+  sheet.getRow(2).height = 30;
+  sheet.getRow(1).font = { bold: true };
+  return workbook.xlsx.writeBuffer();
 }
