@@ -66,4 +66,9 @@
 .uc16-muted { color:#7a8d7f; font-size:14px; padding:12px 0; }
 @media(max-width:1200px) { .uc16-metrics { grid-template-columns:repeat(2,minmax(0,1fr)); } .uc16-main-grid { grid-template-columns:minmax(0,1fr); } }
 @media(max-width:700px) { .uc16-page { padding:18px 12px; } .uc16-heading { align-items:start; flex-wrap:wrap; } .uc16-page h1 { font-size:27px; } .uc16-filter { gap:14px; padding:18px; } .uc16-filter-intro { width:100%; } .uc16-filter label { flex:1; min-width:140px; } .uc16-main-grid.equal { grid-template-columns:minmax(0,1fr); } .uc16-metric { padding:16px; } .uc16-metric>strong { font-size:22px; } .uc16-card { padding:18px; } .uc16-chart { grid-template-columns:65px minmax(0,1fr); } .uc16-period { align-items:start; } }
-@media(max-width:440px) { .uc16-metrics { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:440px) {
+  .uc16-metrics { grid-template-columns:minmax(0,1fr); }
+  .uc16-filter label { flex-basis:100%; min-width:0; }
+  .uc16-filter input { min-width:0; }
+  .uc16-card header,.uc16-period,.uc16-chart-dates { flex-wrap:wrap; }
+}
