@@ -1,0 +1,108 @@
+{
+  "scope": "Local HTTP simulation of vercel.json using built frontend; not Vercel cloud runtime",
+  "passed": 17,
+  "checks": [
+    {
+      "route": "/",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/login",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/login?redirect=%2Fbooking%3FfieldId%3D1",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/register",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/register/verify-otp",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/forgot-password",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/forgot-password/verify-otp",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/fields",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/fields/1/reviews",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/booking?fieldId=1&date=2099-01-01",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/admin/customers/2",
+      "status": 200,
+      "result": "PASS",
+      "type": "SPA entry without redirect"
+    },
+    {
+      "route": "/assets/ball-DOLcsmse.png",
+      "status": 200,
+      "result": "PASS",
+      "type": "Existing static asset preserved"
+    },
+    {
+      "route": "/assets/index-asyHigQr.js",
+      "status": 200,
+      "result": "PASS",
+      "type": "Existing static asset preserved"
+    },
+    {
+      "route": "/assets/index-CyAr4M1W.css",
+      "status": 200,
+      "result": "PASS",
+      "type": "Existing static asset preserved"
+    },
+    {
+      "route": "/api",
+      "status": 404,
+      "result": "PASS",
+      "type": "API excluded from HTML fallback"
+    },
+    {
+      "route": "/api/auth/login",
+      "status": 404,
+      "result": "PASS",
+      "type": "API excluded from HTML fallback"
+    },
+    {
+      "route": "/api/admin/customers",
+      "status": 404,
+      "result": "PASS",
+      "type": "API excluded from HTML fallback"
+    }
+  ]
+}

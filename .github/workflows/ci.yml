@@ -25,6 +25,8 @@ jobs:
         run: node tests/refund_evidence_download_check.mjs
       - run: npm run build
         working-directory: frontend
+      - name: Verify Vercel SPA fallback and built assets
+        run: node tests/vercel_spa_routes_check.mjs
 
   backend:
     runs-on: ubuntu-latest
