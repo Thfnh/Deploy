@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { BarChart3, CalendarDays, Download, RefreshCw, TrendingUp, Wallet } from "lucide-react";
-import { bookingGroups, bookingGroupTotal, getReportSummary, reportCsv } from "../../services/report_service";
+import { bookingGroups, bookingGroupTotal, getReportSummary, reportXlsx } from "../../services/report_service";
 import { vietnamDate } from "../../utils/bookingTime";
 import "./ReportManagement.css";
 
@@ -38,6 +38,8 @@ export default function ReportManagement() {
   const [error, setError] = useState("");
   const [validation, setValidation] = useState("");
   const [revision, setRevision] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState("");
   useEffect(() => {
     const controller = new AbortController();
     getReportSummary(range, { signal: controller.signal }).then(data => {
@@ -61,16 +63,31 @@ export default function ReportManagement() {
     setRange(next);
   };
   const refresh = () => { setLoading(true); setRevision(value => value+1); };
-  const exportReport = () => {
-    const url = URL.createObjectURL(new Blob([reportCsv(result)], { type: "text/csv;charset=utf-8" }));
-    const anchor = document.createElement("a"); anchor.href = url; anchor.download = `bao-cao-${result.from}-${result.to}.csv`;
-    anchor.click(); setTimeout(() => URL.revokeObjectURL(url), 1000);
+  const exportReport = async () => {
+    setExporting(true);
+    setExportError("");
+    try {
+      const report = await reportXlsx(result);
+      const url = URL.createObjectURL(new Blob([report], {
+        type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+      }));
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `bao-cao-${result.from}-${result.to}.xlsx`;
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch {
+      setExportError("Không thể xuất báo cáo Excel. Vui lòng thử lại.");
+    } finally {
+      setExporting(false);
+    }
   };
   const ready = !loading && !validation && !error && result;
   const summaryTotal = result ? bookingGroupTotal(result.bookingLifecycleBreakdown) : null;
   return <section className="uc16-page" aria-busy={loading}>
     <header className="uc16-heading"><div><span className="uc16-eyebrow">HIỆU QUẢ HOẠT ĐỘNG</span><h1>Thống kê & báo cáo</h1></div>
-      <button className="uc16-button secondary" disabled={!ready || summaryTotal===null} onClick={exportReport}><Download size={17} />Xuất CSV</button></header>
+      <button className="uc16-button secondary" disabled={!ready || summaryTotal===null || exporting} onClick={exportReport}><Download size={17} />{exporting ? "Đang xuất…" : "Xuất Excel"}</button></header>
+    {exportError && <p className="uc16-error" role="alert">{exportError}</p>}
     <div className="uc16-filter">
       <div className="uc16-filter-intro"><CalendarDays size={21} /><strong>Khoảng báo cáo</strong><small>Mặc định từ đầu tháng đến hôm nay · tối đa 366 ngày</small></div>
       <label>Từ ngày<input type="date" name="from" required min="1900-01-01" max="9998-12-31" value={draft.from} onChange={e => applyRange({ ...draft, from: e.target.value })} /></label>
