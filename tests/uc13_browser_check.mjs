@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 const base=process.env.UC13_BASE_URL||'http://127.0.0.1:5173';
 const profile=await fs.mkdtemp(path.join(os.tmpdir(),'uc13-browser-'));
 const child=spawn('C:/Program Files (x86)/Microsoft/Edge/Application/msedge.exe',['--headless','--disable-gpu','--no-first-run','--remote-debugging-port=0',`--user-data-dir=${profile}`,'about:blank'],{windowsHide:true,stdio:'ignore'});
-const pause=ms=>new Promise(r=>setTimeout(r,ms));const out='docs/uc13-evidence';await fs.mkdir(out,{recursive:true});let socket;
+const pause=ms=>new Promise(r=>setTimeout(r,ms));const out=process.env.UC13_EVIDENCE_DIR||'docs/uc13-evidence';await fs.mkdir(out,{recursive:true});let socket;
 try {
   let port;for(let i=0;i<100;i++){try{port=Number((await fs.readFile(path.join(profile,'DevToolsActivePort'),'utf8')).split('\n')[0]);break;}catch{await pause(100);}}
   assert.ok(port);
@@ -89,7 +89,31 @@ try {
   mode='normal';await click('Làm mới lịch sử');await wait('document.querySelectorAll(".uc13-table tbody tr").length===2');checks.push('Booking history error and retry');
   mode='list-error';await send('Page.navigate',{url:base+'/admin/customers'});await wait('document.querySelector(".uc13-error")');
   mode='normal';await click('Thử lại');await wait('document.querySelectorAll(".uc13-table tbody tr").length===10');checks.push('List error and retry');
+  const layoutChecks=[];
+  for(const width of [375,768,1440]){
+    await send('Emulation.setDeviceMetricsOverride',{width,height:1100,deviceScaleFactor:1,mobile:width<600});
+    for(const [route,selector,title] of [
+      ['/admin/customers','#customer-list-title','Danh sách khách hàng'],
+      ['/admin/customers/2','#customer-profile-title','Hồ sơ khách hàng: QA Alice Updated'],
+    ]){
+      await send('Page.navigate',{url:base+route});
+      await wait(`document.querySelector(${JSON.stringify(selector)})?.textContent.trim()===${JSON.stringify(title)}`);
+      await evaluate('document.fonts.ready.then(()=>true)');
+      const metrics=await evaluate(`(()=>{const el=document.querySelector(${JSON.stringify(selector)}),r=el.getBoundingClientRect(),s=getComputedStyle(el);
+        return {titleWidth:r.width,height:r.height,left:r.left,right:r.right,display:s.display,visibility:s.visibility,color:s.color,
+          h1Count:document.querySelectorAll('.uc13-page h1').length,eyebrows:document.querySelectorAll('.uc13-eyebrow').length,
+          overflow:document.documentElement.scrollWidth>innerWidth,section:el.closest('section').getAttribute('aria-labelledby')===el.id};})()`);
+      assert.ok(metrics.titleWidth>0&&metrics.height>0);
+      assert.ok(metrics.left>=0&&metrics.right<=width,`${route} title must fit ${width}px`);
+      assert.equal(metrics.display,'block');assert.equal(metrics.visibility,'visible');
+      assert.equal(metrics.color,'rgb(24, 60, 48)');assert.equal(metrics.h1Count,1);
+      assert.equal(metrics.eyebrows,0);assert.equal(metrics.overflow,false);assert.equal(metrics.section,true);
+      layoutChecks.push({route,width,title,result:'PASS',...metrics});
+      await shot(`${route.endsWith('/2')?'profile':'list'}-${width}`);
+    }
+  }
+  checks.push('6 responsive title/banner checks: list and customer-specific profile at 375/768/1440px');
   assert.deepEqual(errors,[]);
-  const result={passed:checks.length,scenarios:checks,note:'Intercepted APIs, synthetic fixture data, no live writes.'};
+  const result={passed:checks.length,scenarios:checks,layoutChecks,note:'Intercepted APIs, synthetic fixture data, no live writes.'};
   await fs.writeFile(`${out}/browser-checks.json`,JSON.stringify(result,null,2)+'\n');console.log(JSON.stringify(result));
 }finally{socket?.close();child.kill();}
