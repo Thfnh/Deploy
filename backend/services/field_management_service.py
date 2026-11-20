@@ -276,15 +276,17 @@ def get_field_details(cursor, field_id):
     return result
 
 
-def has_active_bookings(cursor, field_id):
+def has_active_bookings(cursor, field_id, *, slot=None):
     """
     Booking PENDING/CONFIRMED trong tương lai
     hoặc đang diễn ra phải được bảo vệ.
 
     Khong tu huy booking, khong thay doi payment.
     """
+    overlap = "AND StartTime < ? AND EndTime > ?" if slot is not None else ""
+    params = (field_id, slot[1], slot[0]) if slot is not None else (field_id,)
     cursor.execute(
-        """
+        f"""
         SELECT COUNT(*)
         FROM dbo.Bookings WITH (UPDLOCK, HOLDLOCK)
         WHERE FieldID = ?
@@ -299,8 +301,9 @@ def has_active_bookings(cursor, field_id):
                     AND EndTime > CAST(GETDATE() AS TIME)
                 )
           )
+          {overlap}
         """,
-        field_id
+        *params
     )
 
     return int(cursor.fetchone()[0]) > 0
@@ -313,6 +316,15 @@ def ensure_no_active_bookings(cursor, field_id):
             "Vui lòng xử lý booking trước khi thao tác.",
             409,
             "ACTIVE_BOOKINGS"
+        )
+
+
+def ensure_no_active_bookings_for_price_slot(cursor, field_id, start_time, end_time):
+    if has_active_bookings(cursor, field_id, slot=(start_time, end_time)):
+        raise FieldManagementError(
+            "Khung giờ này trùng với lịch đặt sân đang hiệu lực.",
+            409,
+            "PRICE_SLOT_ACTIVE_BOOKINGS",
         )
 
 
@@ -559,13 +571,9 @@ def add_field_price(cursor, field_id, data):
             "FIELD_ARCHIVED"
         )
 
-    ensure_no_active_bookings(cursor, field_id)
-
     start_time, end_time, price = validate_slot(data)
-
-    ensure_price_slot_available(
-        cursor, field_id, start_time, end_time
-    )
+    ensure_price_slot_available(cursor, field_id, start_time, end_time)
+    ensure_no_active_bookings_for_price_slot(cursor, field_id, start_time, end_time)
 
     cursor.execute(
         """
@@ -605,11 +613,9 @@ def update_field_price(
             "FIELD_ARCHIVED"
         )
 
-    ensure_no_active_bookings(cursor, field_id)
-
     cursor.execute(
         """
-        SELECT PriceID
+        SELECT StartTime, EndTime
         FROM dbo.FieldPrices WITH (UPDLOCK, HOLDLOCK)
         WHERE FieldID = ? AND PriceID = ?
         """,
@@ -617,7 +623,8 @@ def update_field_price(
         price_id
     )
 
-    if cursor.fetchone() is None:
+    current_slot = cursor.fetchone()
+    if current_slot is None:
         raise FieldManagementError(
             "Không tìm thấy khung giá",
             404,
@@ -633,6 +640,11 @@ def update_field_price(
         end_time,
         price_id
     )
+    ensure_no_active_bookings_for_price_slot(
+        cursor, field_id, current_slot.StartTime, current_slot.EndTime
+    )
+    if (start_time, end_time) != (current_slot.StartTime, current_slot.EndTime):
+        ensure_no_active_bookings_for_price_slot(cursor, field_id, start_time, end_time)
 
     cursor.execute(
         """

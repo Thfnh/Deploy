@@ -1172,8 +1172,8 @@ paths:
           description: Giá hoặc thời gian không hợp lệ
         '409':
           description: |
-            Trùng khung giờ, có booking hiệu lực
-            hoặc sân đã lưu trữ
+            Trùng khung giá hoặc giờ của booking đang hiệu lực,
+            hoặc sân đã lưu trữ. Booking đã hủy không chặn thao tác.
 
   /api/admin/fields/{field_id}/prices/{price_id}:
     parameters:
@@ -1226,7 +1226,7 @@ paths:
         '404':
           description: Không tìm thấy sân hoặc khung giá
         '409':
-          description: Không được phép thay đổi
+          description: Khung giá cũ hoặc mới trùng booking đang hiệu lực, khung mới trùng bảng giá, hoặc sân đã lưu trữ
 
   /api/auth/register:
     post:
