@@ -72,6 +72,10 @@
   .uc16-filter label { flex-basis:100%; min-width:0; }
   .uc16-filter input { min-width:0; }
   .uc16-card header,.uc16-period,.uc16-chart-dates { flex-wrap:wrap; }
-  .uc16-heading > .uc16-button { width:100%; }
+  .uc16-heading { gap:8px 12px; margin:8px 0 16px; }
+  .uc16-heading > .uc16-button { padding:8px 12px; }
+  .uc16-filter,.uc16-card { padding:12px; }
+  .uc16-metrics { gap:10px; }
+  .uc16-metric { padding:12px; gap:6px; }
   .uc16-table th,.uc16-table td { padding:10px 8px; }
 }

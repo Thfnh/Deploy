@@ -45,12 +45,11 @@
   .invoice-card dd strong { font-size: 20px; }
   .invoice-balance-notice { padding: 14px; }
   .invoice-balance-notice strong { white-space: normal; overflow-wrap: anywhere; }
-  .invoice-card > button { width: 100%; min-height: 44px; }
-  .invoice-pdf-actions > * { flex: 1 1 120px; min-height: 44px; justify-content: center; }
+  .invoice-card > button, .invoice-pdf-actions > * { min-height: 44px; }
 }
 
 @media (max-width: 380px) {
-  .invoice-card dl { grid-template-columns: minmax(0, 1fr); }
-  .invoice-card dt { padding: 10px 0 2px; border-bottom: 0; }
-  .invoice-card dd { text-align: left; padding: 0 0 10px; }
+  .invoice-card { padding: 16px 12px; }
+  .invoice-card dl { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); column-gap: 10px; }
+  .invoice-card dt, .invoice-card dd { padding: 8px 0; }
 }

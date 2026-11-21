@@ -166,8 +166,7 @@
     padding-top: 20px;
   }
 
-  .field-filter-panel,
-  .field-card-grid {
+  .field-filter-panel {
     grid-template-columns: 1fr;
   }
 }
@@ -197,7 +196,45 @@
 @media (max-width: 680px) {
   .field-list-heading { padding: 24px 20px; border-radius: 16px; }
   .field-filter-panel { padding: 20px; }
+  .field-card-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+  .field-list-page .field-card { border-radius: 10px; }
   .field-list-page .field-card:hover { transform: none; }
+  .field-list-page .field-card-cover {
+    min-height: 44px;
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-align: center;
+  }
+  .field-list-page .field-card-body { min-width: 0; padding: 8px; overflow-wrap: anywhere; }
+  .field-list-page .field-card-title-row { flex-direction: column; gap: 4px; }
+  .field-list-page .field-card-title-row h2 { font-size: 16px; }
+  .field-list-page .field-card-address { min-height: 0; font-size: 12px; }
+  .field-list-page .field-card-price { padding: 6px 0; margin-top: 6px; font-size: 12px; }
+  .field-list-page .field-card-review-link {
+    display: grid;
+    place-items: center;
+    min-height: 44px;
+    padding: 4px;
+    margin-top: 6px;
+    font-size: 12px;
+    line-height: 1.25;
+  }
+  .field-list-page .field-card-availability { margin: 8px 0; }
+  .field-list-page .field-slot-list { gap: 4px; }
+  .field-list-page .field-slot {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+    padding: 4px;
+    border-radius: 6px;
+    font-size: 12px;
+  }
+  .field-list-page .field-slot > div span { font-size: inherit; }
+  .field-list-page .field-slot-state { padding: 2px 4px; font-size: 11px; }
+  .field-list-page .field-card-booking-button { margin-top: 4px; padding: 4px; font-size: 12px; }
 }
 @media (prefers-reduced-motion: reduce) {
   .field-list-page .field-card { transition: none; }
