@@ -102,3 +102,10 @@
   opacity: 0.6;
   cursor: not-allowed;
 }
+
+@media (max-width: 540px) {
+  .settlement-panel { padding: 16px; }
+  .settlement-numbers p { flex-wrap: wrap; column-gap: 12px; row-gap: 4px; }
+  .settlement-numbers strong { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
+  .settlement-confirm, .settlement-refresh { min-height: 44px; }
+}

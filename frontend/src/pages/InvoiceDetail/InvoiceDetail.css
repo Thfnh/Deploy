@@ -44,4 +44,13 @@
   .invoice-card dt, .invoice-card dd { font-size: 13px; padding: 12px 0; }
   .invoice-card dd strong { font-size: 20px; }
   .invoice-balance-notice { padding: 14px; }
+  .invoice-balance-notice strong { white-space: normal; overflow-wrap: anywhere; }
+  .invoice-card > button { width: 100%; min-height: 44px; }
+  .invoice-pdf-actions > * { flex: 1 1 120px; min-height: 44px; justify-content: center; }
+}
+
+@media (max-width: 380px) {
+  .invoice-card dl { grid-template-columns: minmax(0, 1fr); }
+  .invoice-card dt { padding: 10px 0 2px; border-bottom: 0; }
+  .invoice-card dd { text-align: left; padding: 0 0 10px; }
 }
